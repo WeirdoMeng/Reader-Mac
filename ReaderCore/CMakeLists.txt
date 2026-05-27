@@ -42,7 +42,7 @@ set(LIBMOBI_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/third_party/libmobi)
 add_subdirectory(third_party/libmobi)
 
 # ---------------- ReaderCore：业务核心静态库 ----------------
-add_library(reader_core STATIC
+set(READER_CORE_SOURCES
     src/platform_posix.cpp
     src/file_system_posix.cpp
     src/utils.cpp
@@ -54,6 +54,18 @@ add_library(reader_core STATIC
     src/epub_book.cpp
     src/mobi_book.cpp
 )
+if(APPLE)
+    enable_language(OBJCXX)
+    list(APPEND READER_CORE_SOURCES platform/macos/https_nsurl.mm)
+endif()
+add_library(reader_core STATIC ${READER_CORE_SOURCES})
+
+if(APPLE)
+    set_source_files_properties(platform/macos/https_nsurl.mm PROPERTIES
+        COMPILE_FLAGS "-fobjc-arc")
+    target_link_libraries(reader_core PUBLIC
+        "-framework Foundation")
+endif()
 # iconv on macOS lives in libc; no extra link needed. On Linux it's also libc.
 # On Windows there's no iconv path (utils.cpp falls back to MultiByteToWideChar).
 target_include_directories(reader_core

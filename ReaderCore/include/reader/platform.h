@@ -23,7 +23,12 @@ extern "C" {
 #endif
 
 // ---------- primitive types ----------
+// Objective-C already provides BOOL via objc/objc.h (signed char or bool).
+// Skip redefining when compiling Objective-C(++); the engine treats BOOL as
+// "anything that auto-converts to int", which is compatible.
+#ifndef OBJC_BOOL_DEFINED
 typedef int                BOOL;
+#endif
 typedef uint8_t            BYTE;
 typedef uint16_t           WORD;
 typedef uint32_t           DWORD;
