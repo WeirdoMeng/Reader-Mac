@@ -1,4 +1,5 @@
 #import "AppDelegate.h"
+#import "GlobalHotkey.h"
 #import "PreferencesWindowController.h"
 #import "ReaderCanvasView.h"
 
@@ -58,6 +59,26 @@
         [self.canvas openFileAtPath:lastFile restoreIndex:lastIndex];
         self.window.title = lastFile.lastPathComponent;
     }
+
+    // Register global Option+H to toggle show/hide
+    __weak typeof(self) ws = self;
+    [GlobalHotkey registerHotkeyWithBlock:^{
+        [ws toggleShowHide];
+    }];
+}
+
+- (void)toggleShowHide {
+    if ([NSApp isHidden] || ![self.window isVisible]) {
+        [NSApp unhide:nil];
+        [self.window makeKeyAndOrderFront:nil];
+        [NSApp activateIgnoringOtherApps:YES];
+    } else {
+        [NSApp hide:nil];
+    }
+}
+
+- (void)applicationWillTerminate:(NSNotification*)note {
+    [GlobalHotkey unregister];
 }
 
 - (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication*)sender {

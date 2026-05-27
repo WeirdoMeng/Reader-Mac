@@ -16,3 +16,5 @@ ReaderCore/third_party/_downloads/
 ReaderCore/third_party/_extracted/
 ReaderCore/third_party/_build/
 ReaderCore/third_party/_install/
+
+dist/*.dmg

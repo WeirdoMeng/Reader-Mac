@@ -4,6 +4,7 @@ set(APP_SOURCES
     src/ReaderCanvasView.mm
     src/CoreTextMetrics.mm
     src/PreferencesWindowController.mm
+    src/GlobalHotkey.mm
 )
 
 add_executable(ReaderMac MACOSX_BUNDLE ${APP_SOURCES})
@@ -26,4 +27,5 @@ target_link_libraries(ReaderMac PRIVATE
     "-framework Foundation"
     "-framework CoreText"
     "-framework CoreGraphics"
+    "-framework Carbon"
 )
