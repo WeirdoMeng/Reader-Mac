@@ -21,23 +21,29 @@ static OSStatus HotKeyEventHandler(EventHandlerCallRef /*next*/,
     g_block = [block copy];
 
     EventTypeSpec spec = {kEventClassKeyboard, kEventHotKeyPressed};
-    InstallApplicationEventHandler(&HotKeyEventHandler, 1, &spec, nullptr, &g_handler);
+    OSStatus rc = InstallApplicationEventHandler(&HotKeyEventHandler, 1, &spec,
+                                                  nullptr, &g_handler);
+    if (rc != noErr) {
+        NSLog(@"[GlobalHotkey] InstallApplicationEventHandler failed: %d", (int)rc);
+        return NO;
+    }
 
     EventHotKeyID hotKeyID;
     hotKeyID.signature = 'rdrm';
     hotKeyID.id = 1;
 
-    // Option (Alt) + H
-    UInt32 modifierFlags = optionKey;
+    // Ctrl + Option + H —— 避开 macOS 输入法对 Option+字母 的死键捕获
+    UInt32 modifierFlags = controlKey | optionKey;
     UInt32 keyCode       = kVK_ANSI_H;
 
-    OSStatus rc = RegisterEventHotKey(keyCode, modifierFlags,
-                                      hotKeyID, GetApplicationEventTarget(),
-                                      0, &g_hotkey);
+    rc = RegisterEventHotKey(keyCode, modifierFlags,
+                             hotKeyID, GetApplicationEventTarget(),
+                             0, &g_hotkey);
     if (rc != noErr) {
-        NSLog(@"RegisterEventHotKey failed: %d", (int)rc);
+        NSLog(@"[GlobalHotkey] RegisterEventHotKey failed: %d", (int)rc);
         return NO;
     }
+    NSLog(@"[GlobalHotkey] Ctrl+Option+H 注册成功");
     return YES;
 }
 

@@ -22,7 +22,7 @@
                                                          | NSWindowStyleMaskClosable)
                                                 backing:NSBackingStoreBuffered
                                                   defer:NO];
-    w.title = @"Display Settings";
+    w.title = @"显示设置";
     self = [super initWithWindow:w];
     if (self) {
         _canvas = canvas;
@@ -42,8 +42,8 @@
     CGFloat y = 240;
     const CGFloat L = 20, COL2 = 160, COL3 = 250;
 
-    // --- Font size ---
-    NSTextField* l1 = [self labelWithString:@"Font size"];
+    // 字体大小
+    NSTextField* l1 = [self labelWithString:@"字体大小"];
     l1.frame = NSMakeRect(L, y, 120, 22);
     [root addSubview:l1];
     self.fontStepper = [[NSStepper alloc] initWithFrame:NSMakeRect(COL3, y, 28, 22)];
@@ -57,8 +57,8 @@
     [root addSubview:self.fontValueLabel];
 
     y -= 36;
-    // --- Line gap ---
-    NSTextField* l2 = [self labelWithString:@"Line gap"];
+    // 行距
+    NSTextField* l2 = [self labelWithString:@"行距"];
     l2.frame = NSMakeRect(L, y, 120, 22);
     [root addSubview:l2];
     self.lineGapStepper = [[NSStepper alloc] initWithFrame:NSMakeRect(COL3, y, 28, 22)];
@@ -72,8 +72,8 @@
     [root addSubview:self.lineGapValueLabel];
 
     y -= 36;
-    // --- Paragraph gap ---
-    NSTextField* l3 = [self labelWithString:@"Paragraph gap"];
+    // 段距
+    NSTextField* l3 = [self labelWithString:@"段距"];
     l3.frame = NSMakeRect(L, y, 120, 22);
     [root addSubview:l3];
     self.paraGapStepper = [[NSStepper alloc] initWithFrame:NSMakeRect(COL3, y, 28, 22)];
@@ -87,8 +87,8 @@
     [root addSubview:self.paraGapValueLabel];
 
     y -= 36;
-    // --- First-line indent ---
-    self.indentCheckbox = [NSButton checkboxWithTitle:@"First-line indent"
+    // 首行缩进
+    self.indentCheckbox = [NSButton checkboxWithTitle:@"首行缩进"
                                                 target:self
                                                 action:@selector(indentChanged:)];
     self.indentCheckbox.frame = NSMakeRect(L, y, 200, 22);
@@ -96,8 +96,8 @@
     [root addSubview:self.indentCheckbox];
 
     y -= 36;
-    // --- Text color ---
-    NSTextField* l4 = [self labelWithString:@"Text color"];
+    // 文字颜色
+    NSTextField* l4 = [self labelWithString:@"文字颜色"];
     l4.frame = NSMakeRect(L, y, 120, 22);
     [root addSubview:l4];
     self.textColorWell = [[NSColorWell alloc] initWithFrame:NSMakeRect(COL3 - 30, y, 60, 22)];
@@ -107,8 +107,8 @@
     [root addSubview:self.textColorWell];
 
     y -= 36;
-    // --- Background color ---
-    NSTextField* l5 = [self labelWithString:@"Background"];
+    // 背景颜色
+    NSTextField* l5 = [self labelWithString:@"背景颜色"];
     l5.frame = NSMakeRect(L, y, 120, 22);
     [root addSubview:l5];
     self.bgColorWell = [[NSColorWell alloc] initWithFrame:NSMakeRect(COL3 - 30, y, 60, 22)];

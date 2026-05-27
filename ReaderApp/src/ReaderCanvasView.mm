@@ -372,7 +372,7 @@ static NSColor* unarchiveColor(NSData* d) {
     CGContextFillRect(ctx, self.bounds);
 
     if (!_book) {
-        NSString* hint = @"Cmd+O to open .txt / .epub / .mobi";
+        NSString* hint = @"按 Cmd+O 打开 .txt / .epub / .mobi";
         NSDictionary* attrs = @{
             NSFontAttributeName: [NSFont systemFontOfSize:16],
             NSForegroundColorAttributeName:

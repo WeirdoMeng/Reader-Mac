@@ -88,33 +88,44 @@
 - (void)installMenu {
     NSMenu* mainMenu = [[NSMenu alloc] init];
 
-    // App menu (with About / Quit)
+    // 应用菜单
     NSMenuItem* appItem = [[NSMenuItem alloc] init];
     NSMenu* appMenu = [[NSMenu alloc] init];
-    [appMenu addItemWithTitle:@"About Reader-Mac"
+    [appMenu addItemWithTitle:@"关于 Reader-Mac"
                        action:@selector(orderFrontStandardAboutPanel:)
                 keyEquivalent:@""];
-    NSMenuItem* prefs = [[NSMenuItem alloc] initWithTitle:@"Preferences…"
+    NSMenuItem* prefs = [[NSMenuItem alloc] initWithTitle:@"偏好设置…"
                                                     action:@selector(openPreferences:)
                                              keyEquivalent:@","];
     prefs.target = self;
     [appMenu addItem:prefs];
     [appMenu addItem:[NSMenuItem separatorItem]];
-    [appMenu addItemWithTitle:@"Quit Reader-Mac"
+    [appMenu addItemWithTitle:@"隐藏 Reader-Mac"
+                       action:@selector(hide:)
+                keyEquivalent:@"h"];
+    NSMenuItem* hideOthers = [appMenu addItemWithTitle:@"隐藏其他"
+                                                action:@selector(hideOtherApplications:)
+                                         keyEquivalent:@"h"];
+    hideOthers.keyEquivalentModifierMask = NSEventModifierFlagCommand | NSEventModifierFlagOption;
+    [appMenu addItemWithTitle:@"全部显示"
+                       action:@selector(unhideAllApplications:)
+                keyEquivalent:@""];
+    [appMenu addItem:[NSMenuItem separatorItem]];
+    [appMenu addItemWithTitle:@"退出 Reader-Mac"
                        action:@selector(terminate:)
                 keyEquivalent:@"q"];
     appItem.submenu = appMenu;
     [mainMenu addItem:appItem];
 
-    // File menu
+    // 文件菜单
     NSMenuItem* fileItem = [[NSMenuItem alloc] init];
-    NSMenu* fileMenu = [[NSMenu alloc] initWithTitle:@"File"];
-    NSMenuItem* open = [[NSMenuItem alloc] initWithTitle:@"Open…"
+    NSMenu* fileMenu = [[NSMenu alloc] initWithTitle:@"文件"];
+    NSMenuItem* open = [[NSMenuItem alloc] initWithTitle:@"打开…"
                                                   action:@selector(openDocument:)
                                            keyEquivalent:@"o"];
     open.target = self;
     [fileMenu addItem:open];
-    NSMenuItem* close = [[NSMenuItem alloc] initWithTitle:@"Close"
+    NSMenuItem* close = [[NSMenuItem alloc] initWithTitle:@"关闭"
                                                    action:@selector(closeDocument:)
                                             keyEquivalent:@"w"];
     close.target = self;
@@ -122,22 +133,22 @@
     fileItem.submenu = fileMenu;
     [mainMenu addItem:fileItem];
 
-    // View menu
+    // 视图菜单
     NSMenuItem* viewItem = [[NSMenuItem alloc] init];
-    NSMenu* viewMenu = [[NSMenu alloc] initWithTitle:@"View"];
-    NSMenuItem* borderless = [[NSMenuItem alloc] initWithTitle:@"Toggle Borderless"
+    NSMenu* viewMenu = [[NSMenu alloc] initWithTitle:@"视图"];
+    NSMenuItem* borderless = [[NSMenuItem alloc] initWithTitle:@"切换无边框"
                                                          action:@selector(toggleBorderless:)
                                                   keyEquivalent:@"b"];
     borderless.keyEquivalentModifierMask = NSEventModifierFlagCommand | NSEventModifierFlagShift;
     borderless.target = self;
     [viewMenu addItem:borderless];
-    NSMenuItem* fullscreen = [[NSMenuItem alloc] initWithTitle:@"Toggle Full Screen"
+    NSMenuItem* fullscreen = [[NSMenuItem alloc] initWithTitle:@"进入/退出全屏"
                                                          action:@selector(toggleFullScreen:)
                                                   keyEquivalent:@"f"];
     fullscreen.keyEquivalentModifierMask = NSEventModifierFlagCommand | NSEventModifierFlagControl;
     fullscreen.target = self;
     [viewMenu addItem:fullscreen];
-    NSMenuItem* top = [[NSMenuItem alloc] initWithTitle:@"Keep on Top"
+    NSMenuItem* top = [[NSMenuItem alloc] initWithTitle:@"窗口置顶"
                                                   action:@selector(toggleTopMost:)
                                            keyEquivalent:@"t"];
     top.target = self;
@@ -145,48 +156,85 @@
     viewItem.submenu = viewMenu;
     [mainMenu addItem:viewItem];
 
-    // Go menu (chapters + bookmarks)
+    // 跳转菜单（章节 + 书签）
     NSMenuItem* goItem = [[NSMenuItem alloc] init];
-    NSMenu* goMenu = [[NSMenu alloc] initWithTitle:@"Go"];
-    NSMenuItem* prevCh = [[NSMenuItem alloc] initWithTitle:@"Previous Chapter"
+    NSMenu* goMenu = [[NSMenu alloc] initWithTitle:@"跳转"];
+    NSMenuItem* prevCh = [[NSMenuItem alloc] initWithTitle:@"上一章"
                                                      action:@selector(jumpPrevChapter:)
                                               keyEquivalent:@"["];
     prevCh.target = self;
     [goMenu addItem:prevCh];
-    NSMenuItem* nextCh = [[NSMenuItem alloc] initWithTitle:@"Next Chapter"
+    NSMenuItem* nextCh = [[NSMenuItem alloc] initWithTitle:@"下一章"
                                                      action:@selector(jumpNextChapter:)
                                               keyEquivalent:@"]"];
     nextCh.target = self;
     [goMenu addItem:nextCh];
     [goMenu addItem:[NSMenuItem separatorItem]];
 
-    NSMenuItem* chaptersItem = [[NSMenuItem alloc] initWithTitle:@"Chapters"
+    NSMenuItem* chaptersItem = [[NSMenuItem alloc] initWithTitle:@"章节目录"
                                                            action:nil
                                                     keyEquivalent:@""];
-    self.chaptersMenu = [[NSMenu alloc] initWithTitle:@"Chapters"];
+    self.chaptersMenu = [[NSMenu alloc] initWithTitle:@"章节目录"];
     self.chaptersMenu.delegate = self;
     chaptersItem.submenu = self.chaptersMenu;
     [goMenu addItem:chaptersItem];
 
     [goMenu addItem:[NSMenuItem separatorItem]];
-    NSMenuItem* addMark = [[NSMenuItem alloc] initWithTitle:@"Add Bookmark"
+    NSMenuItem* addMark = [[NSMenuItem alloc] initWithTitle:@"添加书签"
                                                       action:@selector(addBookmark:)
                                                keyEquivalent:@"m"];
     addMark.target = self;
     [goMenu addItem:addMark];
 
-    NSMenuItem* bookmarksItem = [[NSMenuItem alloc] initWithTitle:@"Bookmarks"
+    NSMenuItem* bookmarksItem = [[NSMenuItem alloc] initWithTitle:@"书签列表"
                                                             action:nil
                                                      keyEquivalent:@""];
-    self.bookmarksMenu = [[NSMenu alloc] initWithTitle:@"Bookmarks"];
+    self.bookmarksMenu = [[NSMenu alloc] initWithTitle:@"书签列表"];
     self.bookmarksMenu.delegate = self;
     bookmarksItem.submenu = self.bookmarksMenu;
     [goMenu addItem:bookmarksItem];
 
+    [goMenu addItem:[NSMenuItem separatorItem]];
+    NSMenuItem* hideHK = [[NSMenuItem alloc] initWithTitle:@"全局显隐 (Ctrl+Option+H)"
+                                                     action:nil
+                                              keyEquivalent:@""];
+    hideHK.enabled = NO;
+    [goMenu addItem:hideHK];
+
     goItem.submenu = goMenu;
     [mainMenu addItem:goItem];
 
+    // 窗口菜单（系统标准）
+    NSMenuItem* windowItem = [[NSMenuItem alloc] init];
+    NSMenu* windowMenu = [[NSMenu alloc] initWithTitle:@"窗口"];
+    [windowMenu addItemWithTitle:@"最小化"
+                          action:@selector(performMiniaturize:)
+                   keyEquivalent:@"m"];
+    [windowMenu addItemWithTitle:@"缩放"
+                          action:@selector(performZoom:)
+                   keyEquivalent:@""];
+    windowItem.submenu = windowMenu;
+    NSApp.windowsMenu = windowMenu;
+    [mainMenu addItem:windowItem];
+
+    // 帮助菜单
+    NSMenuItem* helpItem = [[NSMenuItem alloc] init];
+    NSMenu* helpMenu = [[NSMenu alloc] initWithTitle:@"帮助"];
+    NSMenuItem* repo = [[NSMenuItem alloc] initWithTitle:@"打开项目主页…"
+                                                   action:@selector(openHomepage:)
+                                            keyEquivalent:@""];
+    repo.target = self;
+    [helpMenu addItem:repo];
+    helpItem.submenu = helpMenu;
+    NSApp.helpMenu = helpMenu;
+    [mainMenu addItem:helpItem];
+
     NSApp.mainMenu = mainMenu;
+}
+
+- (void)openHomepage:(id)sender {
+    [NSWorkspace.sharedWorkspace
+        openURL:[NSURL URLWithString:@"https://github.com/WeirdoMeng/Reader-Mac"]];
 }
 
 // ---------- Go menu actions ----------
@@ -239,7 +287,7 @@
         [menu removeAllItems];
         NSArray<NSDictionary*>* chs = [self.canvas chapters];
         if (chs.count == 0) {
-            NSMenuItem* none = [[NSMenuItem alloc] initWithTitle:@"(no chapters)"
+            NSMenuItem* none = [[NSMenuItem alloc] initWithTitle:@"（暂无章节）"
                                                            action:nil
                                                     keyEquivalent:@""];
             none.enabled = NO;
@@ -262,27 +310,25 @@
         [menu removeAllItems];
         NSArray<NSNumber*>* marks = [self.canvas bookmarks];
         if (marks.count == 0) {
-            NSMenuItem* none = [[NSMenuItem alloc] initWithTitle:@"(no bookmarks)"
+            NSMenuItem* none = [[NSMenuItem alloc] initWithTitle:@"（暂无书签）"
                                                            action:nil
                                                     keyEquivalent:@""];
             none.enabled = NO;
             [menu addItem:none];
             return;
         }
-        int total = 0;
         for (NSNumber* n in marks) {
             int idx = n.intValue;
-            NSString* title = [NSString stringWithFormat:@"@ char %d", idx];
+            NSString* title = [NSString stringWithFormat:@"位置 %d", idx];
             NSMenuItem* mi = [[NSMenuItem alloc] initWithTitle:title
                                                          action:@selector(jumpToBookmark:)
                                                   keyEquivalent:@""];
             mi.target = self;
             mi.tag = idx;
             [menu addItem:mi];
-            ++total;
         }
         [menu addItem:[NSMenuItem separatorItem]];
-        NSMenuItem* clear = [[NSMenuItem alloc] initWithTitle:@"Clear All Bookmarks"
+        NSMenuItem* clear = [[NSMenuItem alloc] initWithTitle:@"清空所有书签"
                                                         action:@selector(clearBookmarks:)
                                                  keyEquivalent:@""];
         clear.target = self;
@@ -338,6 +384,8 @@
 
 - (void)openDocument:(id)sender {
     NSOpenPanel* panel = [NSOpenPanel openPanel];
+    panel.title = @"选择书籍文件";
+    panel.prompt = @"打开";
     panel.allowedFileTypes = @[@"txt", @"epub", @"mobi", @"azw", @"azw3"];
     panel.canChooseFiles = YES;
     panel.canChooseDirectories = NO;
@@ -354,6 +402,17 @@
 - (void)closeDocument:(id)sender {
     [self.canvas closeBook];
     self.window.title = @"Reader-Mac";
+}
+
+- (BOOL)validateMenuItem:(NSMenuItem*)item {
+    // 让"窗口置顶"显示对勾
+    if (item.action == @selector(toggleTopMost:)) {
+        item.state = self.topMost ? NSControlStateValueOn : NSControlStateValueOff;
+    }
+    if (item.action == @selector(toggleBorderless:)) {
+        item.state = self.borderless ? NSControlStateValueOn : NSControlStateValueOff;
+    }
+    return YES;
 }
 
 - (BOOL)application:(NSApplication*)sender openFile:(NSString*)filename {
