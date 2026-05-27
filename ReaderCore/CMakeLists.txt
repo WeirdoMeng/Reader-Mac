@@ -40,3 +40,31 @@ set(USE_XMLWRITER ON CACHE BOOL "" FORCE)
 # libmobi 的 CMakeLists 用了 LIBMOBI_SOURCE_DIR 但没定义；先 set 上
 set(LIBMOBI_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/third_party/libmobi)
 add_subdirectory(third_party/libmobi)
+
+# ---------------- ReaderCore：业务核心静态库 ----------------
+add_library(reader_core STATIC
+    src/platform_posix.cpp
+    src/file_system_posix.cpp
+    src/utils.cpp
+)
+# iconv on macOS lives in libc; no extra link needed. On Linux it's also libc.
+# On Windows there's no iconv path (utils.cpp falls back to MultiByteToWideChar).
+target_include_directories(reader_core
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+target_link_libraries(reader_core
+    PUBLIC
+        cjson
+        miniz
+        minizip
+        mobi
+        ZLIB::ZLIB
+        ${XML2_LIB}
+)
+target_include_directories(reader_core PUBLIC ${XML2_INCLUDE_DIR})
+
+# 警告级别（严格但允许的范围）
+target_compile_options(reader_core PRIVATE
+    -Wall -Wextra -Wno-unused-parameter -Wno-unused-function
+)
