@@ -7,8 +7,11 @@
 
 @interface GlobalHotkey : NSObject
 
-// Register the hotkey. `block` is invoked on the main thread when fired.
-+ (BOOL)registerHotkeyWithBlock:(void (^)(void))block;
+// Register the hotkey to (keyChar, modifiers) where modifiers uses
+// NSEventModifierFlag* bitmask. Block fires on the main thread.
++ (BOOL)registerWithKeyChar:(NSString*)keyChar
+                  modifiers:(NSUInteger)modifiers
+                      block:(void (^)(void))block;
 + (void)unregister;
 
 @end

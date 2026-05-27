@@ -1,7 +1,17 @@
 #import "AppDelegate.h"
 #import "GlobalHotkey.h"
+#import "KeyBindings.h"
 #import "PreferencesWindowController.h"
 #import "ReaderCanvasView.h"
+
+// Helper: pull the current keyChar + modifiers for an action id, apply to
+// an NSMenuItem.
+static void applyShortcut(NSMenuItem* mi, NSString* actionId) {
+    KBAction* a = [KeyBindings.shared actionWithId:actionId];
+    if (!a) return;
+    mi.keyEquivalent = a.shortcut.keyChar ?: @"";
+    mi.keyEquivalentModifierMask = a.shortcut.modifiers;
+}
 
 @interface AppDelegate () <NSMenuDelegate>
 @property (strong) NSWindow* window;
@@ -60,11 +70,22 @@
         self.window.title = lastFile.lastPathComponent;
     }
 
-    // Register global Option+H to toggle show/hide
+    // Register the global show/hide hotkey from current bindings.
+    [self registerGlobalHotkeyFromBindings];
+}
+
+- (void)keyBindingsChanged:(NSNotification*)note {
+    [self installMenu];
+    [self registerGlobalHotkeyFromBindings];
+}
+
+- (void)registerGlobalHotkeyFromBindings {
+    KBAction* a = [KeyBindings.shared actionWithId:@"globalToggle"];
+    if (!a) return;
     __weak typeof(self) ws = self;
-    [GlobalHotkey registerHotkeyWithBlock:^{
-        [ws toggleShowHide];
-    }];
+    [GlobalHotkey registerWithKeyChar:a.shortcut.keyChar
+                            modifiers:a.shortcut.modifiers
+                                block:^{ [ws toggleShowHide]; }];
 }
 
 - (void)toggleShowHide {
@@ -96,8 +117,9 @@
                 keyEquivalent:@""];
     NSMenuItem* prefs = [[NSMenuItem alloc] initWithTitle:@"偏好设置…"
                                                     action:@selector(openPreferences:)
-                                             keyEquivalent:@","];
+                                             keyEquivalent:@""];
     prefs.target = self;
+    applyShortcut(prefs, @"preferences");
     [appMenu addItem:prefs];
     [appMenu addItem:[NSMenuItem separatorItem]];
     [appMenu addItemWithTitle:@"隐藏 Reader-Mac"
@@ -122,13 +144,15 @@
     NSMenu* fileMenu = [[NSMenu alloc] initWithTitle:@"文件"];
     NSMenuItem* open = [[NSMenuItem alloc] initWithTitle:@"打开…"
                                                   action:@selector(openDocument:)
-                                           keyEquivalent:@"o"];
+                                           keyEquivalent:@""];
     open.target = self;
+    applyShortcut(open, @"openFile");
     [fileMenu addItem:open];
     NSMenuItem* close = [[NSMenuItem alloc] initWithTitle:@"关闭"
                                                    action:@selector(closeDocument:)
-                                            keyEquivalent:@"w"];
+                                            keyEquivalent:@""];
     close.target = self;
+    applyShortcut(close, @"closeFile");
     [fileMenu addItem:close];
     fileItem.submenu = fileMenu;
     [mainMenu addItem:fileItem];
@@ -138,20 +162,21 @@
     NSMenu* viewMenu = [[NSMenu alloc] initWithTitle:@"视图"];
     NSMenuItem* borderless = [[NSMenuItem alloc] initWithTitle:@"切换无边框"
                                                          action:@selector(toggleBorderless:)
-                                                  keyEquivalent:@"b"];
-    borderless.keyEquivalentModifierMask = NSEventModifierFlagCommand | NSEventModifierFlagShift;
+                                                  keyEquivalent:@""];
     borderless.target = self;
+    applyShortcut(borderless, @"borderless");
     [viewMenu addItem:borderless];
     NSMenuItem* fullscreen = [[NSMenuItem alloc] initWithTitle:@"进入/退出全屏"
                                                          action:@selector(toggleFullScreen:)
-                                                  keyEquivalent:@"f"];
-    fullscreen.keyEquivalentModifierMask = NSEventModifierFlagCommand | NSEventModifierFlagControl;
+                                                  keyEquivalent:@""];
     fullscreen.target = self;
+    applyShortcut(fullscreen, @"fullScreen");
     [viewMenu addItem:fullscreen];
     NSMenuItem* top = [[NSMenuItem alloc] initWithTitle:@"窗口置顶"
                                                   action:@selector(toggleTopMost:)
-                                           keyEquivalent:@"t"];
+                                           keyEquivalent:@""];
     top.target = self;
+    applyShortcut(top, @"topMost");
     [viewMenu addItem:top];
     viewItem.submenu = viewMenu;
     [mainMenu addItem:viewItem];
@@ -161,13 +186,15 @@
     NSMenu* goMenu = [[NSMenu alloc] initWithTitle:@"跳转"];
     NSMenuItem* prevCh = [[NSMenuItem alloc] initWithTitle:@"上一章"
                                                      action:@selector(jumpPrevChapter:)
-                                              keyEquivalent:@"["];
+                                              keyEquivalent:@""];
     prevCh.target = self;
+    applyShortcut(prevCh, @"prevChapter");
     [goMenu addItem:prevCh];
     NSMenuItem* nextCh = [[NSMenuItem alloc] initWithTitle:@"下一章"
                                                      action:@selector(jumpNextChapter:)
-                                              keyEquivalent:@"]"];
+                                              keyEquivalent:@""];
     nextCh.target = self;
+    applyShortcut(nextCh, @"nextChapter");
     [goMenu addItem:nextCh];
     [goMenu addItem:[NSMenuItem separatorItem]];
 
@@ -182,8 +209,9 @@
     [goMenu addItem:[NSMenuItem separatorItem]];
     NSMenuItem* addMark = [[NSMenuItem alloc] initWithTitle:@"添加书签"
                                                       action:@selector(addBookmark:)
-                                               keyEquivalent:@"m"];
+                                               keyEquivalent:@""];
     addMark.target = self;
+    applyShortcut(addMark, @"addBookmark");
     [goMenu addItem:addMark];
 
     NSMenuItem* bookmarksItem = [[NSMenuItem alloc] initWithTitle:@"书签列表"
@@ -195,7 +223,10 @@
     [goMenu addItem:bookmarksItem];
 
     [goMenu addItem:[NSMenuItem separatorItem]];
-    NSMenuItem* hideHK = [[NSMenuItem alloc] initWithTitle:@"全局显隐 (Ctrl+Option+H)"
+    KBAction* hkAction = [KeyBindings.shared actionWithId:@"globalToggle"];
+    NSString* hkTitle = [NSString stringWithFormat:@"全局显隐 (%@)",
+                                                    hkAction.shortcut.displayString];
+    NSMenuItem* hideHK = [[NSMenuItem alloc] initWithTitle:hkTitle
                                                      action:nil
                                               keyEquivalent:@""];
     hideHK.enabled = NO;

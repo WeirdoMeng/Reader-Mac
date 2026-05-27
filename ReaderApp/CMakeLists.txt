@@ -5,6 +5,8 @@ set(APP_SOURCES
     src/CoreTextMetrics.mm
     src/PreferencesWindowController.mm
     src/GlobalHotkey.mm
+    src/KeyBindings.mm
+    src/KeyRecorderButton.mm
 )
 
 add_executable(ReaderMac MACOSX_BUNDLE ${APP_SOURCES})
