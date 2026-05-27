@@ -51,12 +51,15 @@ add_library(reader_core STATIC
     src/page.cpp
     src/book.cpp
     src/text_book.cpp
+    src/epub_book.cpp
+    src/mobi_book.cpp
 )
 # iconv on macOS lives in libc; no extra link needed. On Linux it's also libc.
 # On Windows there's no iconv path (utils.cpp falls back to MultiByteToWideChar).
 target_include_directories(reader_core
     PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/third_party/libmobi/src
 )
 target_link_libraries(reader_core
     PUBLIC
