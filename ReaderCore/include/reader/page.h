@@ -89,6 +89,11 @@ public:
     // from m_PageInfo afterwards.
     void CalcLayout(int width, int height);
 
+    // Force next SelectFont* call to re-invoke ITextMetrics::use_font.
+    // Required when the host changed header_t.font.lfHeight (font size /
+    // face) and needs the metrics to pick up the new font.
+    void InvalidateFontCache() { m_dcIndex = -1; }
+
     // Query
     int    GetPageLength(void) const { return m_PageLength; }
     int    GetTextLength(void) const { return m_Length; }

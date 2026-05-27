@@ -22,6 +22,8 @@ static void applyShortcut(NSMenuItem* mi, NSString* actionId) {
 @property (strong) PreferencesWindowController* prefs;
 @property (strong) NSMenu* chaptersMenu;
 @property (strong) NSMenu* bookmarksMenu;
+@property (strong) NSMenu* recentMenu;
+@property (strong) id    arrowKeyMonitor;
 @end
 
 @implementation AppDelegate
@@ -36,7 +38,7 @@ static void applyShortcut(NSMenuItem* mi, NSString* actionId) {
                                               styleMask:style
                                                 backing:NSBackingStoreBuffered
                                                   defer:NO];
-    self.window.title = @"Reader-Mac";
+    self.window.title = @"摸鱼书摊";
     [self.window center];
 
     self.canvas = [[ReaderCanvasView alloc] initWithFrame:frame];
@@ -49,6 +51,26 @@ static void applyShortcut(NSMenuItem* mi, NSString* actionId) {
     self.savedStyleMask = style;
     self.borderless = NO;
     self.topMost = NO;
+
+    // restore last window state
+    NSUserDefaults* defs = NSUserDefaults.standardUserDefaults;
+    if ([defs boolForKey:@"windowTopMost"]) {
+        [self toggleTopMost:nil];
+    }
+    if ([defs boolForKey:@"windowBorderless"]) {
+        [self toggleBorderless:nil];
+    }
+    // restore window frame
+    NSString* frameStr = [defs stringForKey:@"windowFrame"];
+    if (frameStr) [self.window setFrameFromString:frameStr];
+    // remember frame on changes
+    self.window.frameAutosaveName = @"";
+    [NSNotificationCenter.defaultCenter
+        addObserver:self selector:@selector(saveWindowFrame:)
+               name:NSWindowDidResizeNotification object:self.window];
+    [NSNotificationCenter.defaultCenter
+        addObserver:self selector:@selector(saveWindowFrame:)
+               name:NSWindowDidMoveNotification   object:self.window];
 
     // restore window alpha
     NSUserDefaults* prefs = NSUserDefaults.standardUserDefaults;
@@ -72,9 +94,46 @@ static void applyShortcut(NSMenuItem* mi, NSString* actionId) {
 
     // Register the global show/hide hotkey from current bindings.
     [self registerGlobalHotkeyFromBindings];
+
+    // Backup arrow-key monitor: ensure 翻页快捷键 always works regardless of
+    // first-responder routing. Eats the event before AppKit dispatches it to
+    // any control that might be focused.
+    __weak typeof(self) ws = self;
+    self.arrowKeyMonitor = [NSEvent addLocalMonitorForEventsMatchingMask:NSEventMaskKeyDown
+                                                                  handler:^NSEvent*(NSEvent* e) {
+        if (![ws.canvas hasBook]) return e;
+        if (e.window != ws.window) return e;
+        // Don't steal keys when a modal sheet / panel is up
+        if (NSApp.modalWindow && NSApp.modalWindow != ws.window) return e;
+        NSEventModifierFlags mods = e.modifierFlags &
+            (NSEventModifierFlagCommand | NSEventModifierFlagOption |
+             NSEventModifierFlagControl);
+        NSString* s = e.charactersIgnoringModifiers;
+        if (s.length == 0) return e;
+        unichar k = [s characterAtIndex:0];
+        switch (k) {
+            case NSLeftArrowFunctionKey:
+                if (mods & NSEventModifierFlagControl) [ws.canvas jumpPrevChapter];
+                else [ws.canvas pageUp];
+                return nil;
+            case NSRightArrowFunctionKey:
+                if (mods & NSEventModifierFlagControl) [ws.canvas jumpNextChapter];
+                else [ws.canvas pageDown];
+                return nil;
+            case NSUpArrowFunctionKey:   [ws.canvas lineUp]; return nil;
+            case NSDownArrowFunctionKey: [ws.canvas lineDown]; return nil;
+        }
+        return e;
+    }];
+}
+
+- (void)saveWindowFrame:(NSNotification*)note {
+    [NSUserDefaults.standardUserDefaults setObject:[self.window stringWithSavedFrame]
+                                            forKey:@"windowFrame"];
 }
 
 - (void)keyBindingsChanged:(NSNotification*)note {
+    NSLog(@"[AppDelegate] 快捷键变更通知，重建菜单");
     [self installMenu];
     [self registerGlobalHotkeyFromBindings];
 }
@@ -109,10 +168,10 @@ static void applyShortcut(NSMenuItem* mi, NSString* actionId) {
 - (void)installMenu {
     NSMenu* mainMenu = [[NSMenu alloc] init];
 
-    // 应用菜单
+    // 应用菜单（精简版）
     NSMenuItem* appItem = [[NSMenuItem alloc] init];
     NSMenu* appMenu = [[NSMenu alloc] init];
-    [appMenu addItemWithTitle:@"关于 Reader-Mac"
+    [appMenu addItemWithTitle:@"关于摸鱼书摊"
                        action:@selector(orderFrontStandardAboutPanel:)
                 keyEquivalent:@""];
     NSMenuItem* prefs = [[NSMenuItem alloc] initWithTitle:@"偏好设置…"
@@ -122,18 +181,7 @@ static void applyShortcut(NSMenuItem* mi, NSString* actionId) {
     applyShortcut(prefs, @"preferences");
     [appMenu addItem:prefs];
     [appMenu addItem:[NSMenuItem separatorItem]];
-    [appMenu addItemWithTitle:@"隐藏 Reader-Mac"
-                       action:@selector(hide:)
-                keyEquivalent:@"h"];
-    NSMenuItem* hideOthers = [appMenu addItemWithTitle:@"隐藏其他"
-                                                action:@selector(hideOtherApplications:)
-                                         keyEquivalent:@"h"];
-    hideOthers.keyEquivalentModifierMask = NSEventModifierFlagCommand | NSEventModifierFlagOption;
-    [appMenu addItemWithTitle:@"全部显示"
-                       action:@selector(unhideAllApplications:)
-                keyEquivalent:@""];
-    [appMenu addItem:[NSMenuItem separatorItem]];
-    [appMenu addItemWithTitle:@"退出 Reader-Mac"
+    [appMenu addItemWithTitle:@"退出摸鱼书摊"
                        action:@selector(terminate:)
                 keyEquivalent:@"q"];
     appItem.submenu = appMenu;
@@ -148,6 +196,15 @@ static void applyShortcut(NSMenuItem* mi, NSString* actionId) {
     open.target = self;
     applyShortcut(open, @"openFile");
     [fileMenu addItem:open];
+
+    NSMenuItem* recentItem = [[NSMenuItem alloc] initWithTitle:@"最近阅读"
+                                                         action:nil
+                                                  keyEquivalent:@""];
+    self.recentMenu = [[NSMenu alloc] initWithTitle:@"最近阅读"];
+    self.recentMenu.delegate = self;
+    recentItem.submenu = self.recentMenu;
+    [fileMenu addItem:recentItem];
+
     NSMenuItem* close = [[NSMenuItem alloc] initWithTitle:@"关闭"
                                                    action:@selector(closeDocument:)
                                             keyEquivalent:@""];
@@ -314,6 +371,37 @@ static void applyShortcut(NSMenuItem* mi, NSString* actionId) {
 
 // Build submenu contents lazily on open.
 - (void)menuNeedsUpdate:(NSMenu*)menu {
+    if (menu == self.recentMenu) {
+        [menu removeAllItems];
+        NSArray<NSDictionary*>* recents = [ReaderCanvasView recentBooks];
+        if (recents.count == 0) {
+            NSMenuItem* none = [[NSMenuItem alloc] initWithTitle:@"（暂无记录）"
+                                                           action:nil
+                                                    keyEquivalent:@""];
+            none.enabled = NO;
+            [menu addItem:none];
+            return;
+        }
+        for (int i = 0; i < (int)recents.count; ++i) {
+            NSDictionary* e = recents[i];
+            NSString* path = e[@"path"];
+            NSString* title = [NSString stringWithFormat:@"%@", path.lastPathComponent];
+            NSMenuItem* mi = [[NSMenuItem alloc] initWithTitle:title
+                                                         action:@selector(openRecent:)
+                                                  keyEquivalent:@""];
+            mi.target = self;
+            mi.representedObject = path;
+            mi.toolTip = path;
+            [menu addItem:mi];
+        }
+        [menu addItem:[NSMenuItem separatorItem]];
+        NSMenuItem* clear = [[NSMenuItem alloc] initWithTitle:@"清除最近记录"
+                                                        action:@selector(clearRecent:)
+                                                 keyEquivalent:@""];
+        clear.target = self;
+        [menu addItem:clear];
+        return;
+    }
     if (menu == self.chaptersMenu) {
         [menu removeAllItems];
         NSArray<NSDictionary*>* chs = [self.canvas chapters];
@@ -374,6 +462,18 @@ static void applyShortcut(NSMenuItem* mi, NSString* actionId) {
     }
 }
 
+- (void)openRecent:(NSMenuItem*)sender {
+    NSString* path = sender.representedObject;
+    if (path && [NSFileManager.defaultManager fileExistsAtPath:path]) {
+        [self.canvas openFileAtPath:path];
+        self.window.title = path.lastPathComponent;
+    }
+}
+
+- (void)clearRecent:(id)sender {
+    [ReaderCanvasView clearRecentBooks];
+}
+
 // ---------- View toggles ----------
 
 - (void)openPreferences:(id)sender {
@@ -389,16 +489,28 @@ static void applyShortcut(NSMenuItem* mi, NSString* actionId) {
     self.borderless = !self.borderless;
     NSRect frame = self.window.frame;
     if (self.borderless) {
-        self.savedStyleMask = self.window.styleMask;
-        self.window.styleMask = NSWindowStyleMaskBorderless | NSWindowStyleMaskResizable;
+        // 保存原 styleMask 用于复原
+        if (!(self.window.styleMask & NSWindowStyleMaskBorderless))
+            self.savedStyleMask = self.window.styleMask;
+        self.window.styleMask = NSWindowStyleMaskBorderless |
+                                NSWindowStyleMaskResizable  |
+                                NSWindowStyleMaskMiniaturizable;
         self.window.titleVisibility = NSWindowTitleHidden;
+        self.window.titlebarAppearsTransparent = YES;
+        self.window.hasShadow = NO;          // 去除外发光的"边框"假象
+        self.window.opaque = NO;
+        self.window.backgroundColor = [NSColor clearColor];
     } else {
         self.window.styleMask = self.savedStyleMask;
         self.window.titleVisibility = NSWindowTitleVisible;
-        self.window.title = self.canvas ? self.window.title : @"Reader-Mac";
+        self.window.titlebarAppearsTransparent = NO;
+        self.window.hasShadow = YES;
+        self.window.opaque = YES;
+        self.window.backgroundColor = [NSColor windowBackgroundColor];
     }
     [self.window setFrame:frame display:YES];
     [self.window makeFirstResponder:self.canvas];
+    [NSUserDefaults.standardUserDefaults setBool:self.borderless forKey:@"windowBorderless"];
 }
 
 - (void)toggleFullScreen:(id)sender {
@@ -411,6 +523,7 @@ static void applyShortcut(NSMenuItem* mi, NSString* actionId) {
     if ([sender isKindOfClass:[NSMenuItem class]]) {
         ((NSMenuItem*)sender).state = self.topMost ? NSControlStateValueOn : NSControlStateValueOff;
     }
+    [NSUserDefaults.standardUserDefaults setBool:self.topMost forKey:@"windowTopMost"];
 }
 
 - (void)openDocument:(id)sender {
@@ -432,7 +545,7 @@ static void applyShortcut(NSMenuItem* mi, NSString* actionId) {
 
 - (void)closeDocument:(id)sender {
     [self.canvas closeBook];
-    self.window.title = @"Reader-Mac";
+    self.window.title = @"摸鱼书摊";
 }
 
 - (BOOL)validateMenuItem:(NSMenuItem*)item {

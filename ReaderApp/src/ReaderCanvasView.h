@@ -50,4 +50,17 @@
 - (void)addBookmarkAtCurrentLocation;
 - (void)removeBookmarkAtIndex:(int)i;
 
+// Recent files history (most-recent first). Each entry: {path, index, openedAt}.
++ (NSArray<NSDictionary*>*)recentBooks;
++ (void)clearRecentBooks;
+
+// Page-engine controls
+- (BOOL)hasBook;
+- (void)pageUp;
+- (void)pageDown;
+- (void)lineUp;
+- (void)lineDown;
+- (void)jumpPrevChapter;
+- (void)jumpNextChapter;
+
 @end

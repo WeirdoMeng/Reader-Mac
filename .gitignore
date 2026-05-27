@@ -18,3 +18,4 @@ ReaderCore/third_party/_build/
 ReaderCore/third_party/_install/
 
 dist/*.dmg
+ReaderApp/Resources/AppIcon.iconset/

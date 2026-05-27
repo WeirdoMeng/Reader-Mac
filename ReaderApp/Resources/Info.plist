@@ -13,17 +13,21 @@
     <key>CFBundleExecutable</key>
     <string>ReaderMac</string>
     <key>CFBundleIdentifier</key>
-    <string>com.weirdomeng.ReaderMac</string>
+    <string>com.weirdomeng.MoyuShutan</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
-    <string>Reader-Mac</string>
+    <string>摸鱼书摊</string>
+    <key>CFBundleDisplayName</key>
+    <string>摸鱼书摊</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>0.1.0</string>
+    <string>0.2.0</string>
     <key>CFBundleVersion</key>
-    <string>1</string>
+    <string>2</string>
     <key>LSMinimumSystemVersion</key>
     <string>11.0</string>
     <key>NSHighResolutionCapable</key>
@@ -34,7 +38,7 @@
     <array>
         <dict>
             <key>CFBundleTypeName</key>
-            <string>Plain Text</string>
+            <string>纯文本</string>
             <key>CFBundleTypeRole</key>
             <string>Viewer</string>
             <key>LSItemContentTypes</key>

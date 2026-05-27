@@ -71,6 +71,14 @@ public:
     return self;
 }
 
+- (BOOL)hasBook { return _book != nullptr; }
+- (void)pageUp        { if (_book) _book->PageUp(); }
+- (void)pageDown      { if (_book) _book->PageDown(); }
+- (void)lineUp        { if (_book) _book->LineUp(); }
+- (void)lineDown      { if (_book) _book->LineDown(); }
+- (void)jumpPrevChapter { if (_book) _book->JumpPrevChapter(); }
+- (void)jumpNextChapter { if (_book) _book->JumpNextChapter(); }
+
 - (BOOL)isFlipped { return YES; }       // top-left origin matches the engine
 - (BOOL)acceptsFirstResponder { return YES; }
 
@@ -84,7 +92,9 @@ public:
 - (int)currentIndex      { return _index; }
 
 - (BOOL)openFileAtPath:(NSString*)path {
-    return [self openFileAtPath:path restoreIndex:0];
+    // Restore reading position from history for this file (per-book memory).
+    int restore = [[self class] recentIndexFor:path];
+    return [self openFileAtPath:path restoreIndex:restore];
 }
 
 - (BOOL)openFileAtPath:(NSString*)path restoreIndex:(int)idx {
@@ -209,6 +219,7 @@ static NSString* bookmarkKeyFor(NSString* file) {
     if (pt > 64) pt = 64;
     _header.font.lfHeight       = -pt;
     _header.font_title.lfHeight = -pt;
+    if (_book) _book->InvalidateFontCache();  // force re-measure with new size
     [self relayoutAndRedraw];
     [self saveDisplayProfileToUserDefaults];
 }
@@ -294,10 +305,48 @@ static NSColor* unarchiveColor(NSData* d) {
     if (self.currentFilePath) {
         [d setObject:self.currentFilePath forKey:@"lastFile"];
         [d setInteger:_index             forKey:@"lastIndex"];
+        [[self class] updateRecentBook:self.currentFilePath index:_index];
     } else {
         [d removeObjectForKey:@"lastFile"];
         [d removeObjectForKey:@"lastIndex"];
     }
+}
+
+// ---------- recent books history ----------
+
++ (NSArray<NSDictionary*>*)recentBooks {
+    NSArray* a = [NSUserDefaults.standardUserDefaults arrayForKey:@"recentBooks"];
+    return a ?: @[];
+}
+
++ (void)updateRecentBook:(NSString*)path index:(int)idx {
+    if (!path) return;
+    NSMutableArray* arr = [[[self class] recentBooks] mutableCopy] ?: [NSMutableArray array];
+    // remove duplicate
+    NSMutableArray* dup = [NSMutableArray array];
+    for (NSDictionary* e in arr) {
+        if ([e[@"path"] isEqualToString:path]) [dup addObject:e];
+    }
+    [arr removeObjectsInArray:dup];
+    // insert at front
+    [arr insertObject:@{ @"path": path,
+                         @"index": @(idx),
+                         @"openedAt": @([NSDate.now timeIntervalSince1970]) }
+              atIndex:0];
+    // cap at 20
+    if (arr.count > 20) [arr removeObjectsInRange:NSMakeRange(20, arr.count - 20)];
+    [NSUserDefaults.standardUserDefaults setObject:arr forKey:@"recentBooks"];
+}
+
++ (int)recentIndexFor:(NSString*)path {
+    for (NSDictionary* e in [[self class] recentBooks]) {
+        if ([e[@"path"] isEqualToString:path]) return [e[@"index"] intValue];
+    }
+    return 0;
+}
+
++ (void)clearRecentBooks {
+    [NSUserDefaults.standardUserDefaults removeObjectForKey:@"recentBooks"];
 }
 
 - (void)viewDidEndLiveResize {
