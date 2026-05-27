@@ -49,6 +49,8 @@ add_library(reader_core STATIC
     src/html_parser.cpp
     src/defaults.cpp
     src/page.cpp
+    src/book.cpp
+    src/text_book.cpp
 )
 # iconv on macOS lives in libc; no extra link needed. On Linux it's also libc.
 # On Windows there's no iconv path (utils.cpp falls back to MultiByteToWideChar).
@@ -77,6 +79,9 @@ endif()
 target_compile_options(reader_core PRIVATE
     -Wall -Wextra -Wno-unused-parameter -Wno-unused-function
 )
+
+# ---------------- CLI smoke test ----------------
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../ReaderCli ${CMAKE_BINARY_DIR}/ReaderCli)
 
 # ---------------- 单元测试 ----------------
 option(READER_BUILD_TESTS "Build ReaderCore unit tests" ON)
