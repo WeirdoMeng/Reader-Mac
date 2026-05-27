@@ -9,6 +9,18 @@
 
 @implementation KeyRecorderButton
 
+- (void)dealloc {
+    if (self.eventMonitor) {
+        [NSEvent removeMonitor:self.eventMonitor];
+        self.eventMonitor = nil;
+    }
+}
+
+- (void)viewWillMoveToWindow:(NSWindow*)newWindow {
+    [super viewWillMoveToWindow:newWindow];
+    if (!newWindow && self.recording) [self stopRecording];
+}
+
 - (instancetype)initWithFrame:(NSRect)f {
     if ((self = [super initWithFrame:f])) {
         self.bezelStyle = NSBezelStyleRounded;
@@ -36,7 +48,9 @@
     self.eventMonitor =
         [NSEvent addLocalMonitorForEventsMatchingMask:NSEventMaskKeyDown
                                               handler:^NSEvent* (NSEvent* event) {
-        if (!ws.recording) return event;
+        // 仅在录入态且事件发往当前 button 所在窗口时拦截
+        if (!ws || !ws.recording) return event;
+        if (event.window && event.window != ws.window) return event;
         if (event.keyCode == 53 /* Esc */) {
             [ws stopRecording];
             return nil;

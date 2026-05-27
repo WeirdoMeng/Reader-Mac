@@ -416,6 +416,13 @@ static NSColor* unarchiveColor(NSData* d) {
     CGContextRef ctx = [NSGraphicsContext currentContext].CGContext;
     if (!ctx) return;
 
+    // 把窗口背景也同步，避免 borderless 时左右色差
+    if (self.window && !self.window.opaque == NO) {
+        // skip if window is intentionally clear (borderless transparent mode)
+    } else if (self.window) {
+        self.window.backgroundColor = self.bgColorCache;
+    }
+
     // background
     CGContextSetFillColorWithColor(ctx, [self.bgColorCache CGColor]);
     CGContextFillRect(ctx, self.bounds);

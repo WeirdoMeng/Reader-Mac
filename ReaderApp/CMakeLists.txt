@@ -36,3 +36,14 @@ target_link_libraries(ReaderMac PRIVATE
     "-framework CoreGraphics"
     "-framework Carbon"
 )
+
+# Rename the .app bundle to "摸鱼书摊.app" after build, so the Dock tooltip
+# and Finder display name match. Keeps the inner binary as ReaderMac
+# (matches CFBundleExecutable for ASCII-safety).
+add_custom_command(TARGET ReaderMac POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E rm -rf "${CMAKE_CURRENT_BINARY_DIR}/摸鱼书摊.app"
+    COMMAND ${CMAKE_COMMAND} -E rename
+            "${CMAKE_CURRENT_BINARY_DIR}/ReaderMac.app"
+            "${CMAKE_CURRENT_BINARY_DIR}/摸鱼书摊.app"
+    COMMENT "Renaming bundle to 摸鱼书摊.app"
+)

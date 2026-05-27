@@ -9,4 +9,5 @@
 @interface KeyRecorderButton : NSButton
 @property (copy) void (^onRecorded)(KBShortcut* shortcut);
 - (void)setShortcut:(KBShortcut*)s;
+- (void)stopRecording;   // safe to call even if not recording
 @end

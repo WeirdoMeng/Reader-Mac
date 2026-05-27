@@ -107,7 +107,9 @@ reader::CharMetrics CoreTextMetrics::measure_char(wchar_t ch) {
     CGSize adv[2] = {{0, 0}, {0, 0}};
     CTFontGetAdvancesForGlyphs(font, kCTFontOrientationHorizontal, glyphs, adv, count);
     double total = adv[0].width + (count == 2 ? adv[1].width : 0.0);
-    m.advance_x = (int)ceil(total);
+    // 用 round 而非 ceil：避免每行累积误差导致右边距视觉不平衡
+    m.advance_x = (int)round(total);
+    if (m.advance_x < 1) m.advance_x = 1;
     return m;
 }
 

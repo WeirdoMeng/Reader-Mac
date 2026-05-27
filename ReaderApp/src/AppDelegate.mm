@@ -9,8 +9,12 @@
 static void applyShortcut(NSMenuItem* mi, NSString* actionId) {
     KBAction* a = [KeyBindings.shared actionWithId:actionId];
     if (!a) return;
-    mi.keyEquivalent = a.shortcut.keyChar ?: @"";
+    NSString* k = a.shortcut.keyChar.lowercaseString ?: @"";
+    mi.keyEquivalent = k;
     mi.keyEquivalentModifierMask = a.shortcut.modifiers;
+    mi.enabled = YES;
+    NSLog(@"[applyShortcut] %@ => '%@' mods=0x%lx",
+          actionId, k, (unsigned long)a.shortcut.modifiers);
 }
 
 @interface AppDelegate () <NSMenuDelegate>
@@ -482,7 +486,27 @@ static void applyShortcut(NSMenuItem* mi, NSString* actionId) {
     }
     [self.prefs showWindow:nil];
     [self.prefs.window center];
+    // 子窗口跟随主窗口的置顶状态
+    self.prefs.window.level = self.topMost ? NSFloatingWindowLevel : NSNormalWindowLevel;
     [self.prefs.window makeKeyAndOrderFront:nil];
+
+    // 监听 prefs 关闭，确保主窗口重新成为 keyWindow + canvas 重新成为 firstResponder
+    [NSNotificationCenter.defaultCenter removeObserver:self
+                                                   name:NSWindowWillCloseNotification
+                                                 object:self.prefs.window];
+    [NSNotificationCenter.defaultCenter
+        addObserver:self
+           selector:@selector(prefsWindowWillClose:)
+               name:NSWindowWillCloseNotification
+             object:self.prefs.window];
+}
+
+- (void)prefsWindowWillClose:(NSNotification*)note {
+    // 延迟一帧让 prefs 真正关掉，再把焦点回到主窗口的 canvas
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [self.window makeKeyAndOrderFront:nil];
+        [self.window makeFirstResponder:self.canvas];
+    });
 }
 
 - (void)toggleBorderless:(id)sender {

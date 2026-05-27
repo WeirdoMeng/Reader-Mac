@@ -174,6 +174,7 @@
 @property (strong) NSTableView* table;
 @property (strong) NSArray<KBAction*>* actions;
 @property (strong) NSMutableDictionary<NSString*, KeyRecorderButton*>* recorders;
+- (void)stopAllRecording;
 @end
 
 @implementation ShortcutsView
@@ -246,6 +247,12 @@
     [KeyBindings.shared resetAllToDefault];
 }
 
+- (void)stopAllRecording {
+    for (KeyRecorderButton* btn in self.recorders.allValues) {
+        [btn stopRecording];
+    }
+}
+
 - (NSInteger)numberOfRowsInTableView:(NSTableView*)tv { return self.actions.count; }
 
 - (NSView*)tableView:(NSTableView*)tv
@@ -279,8 +286,9 @@
 //                       PREFERENCES WINDOW CONTROLLER
 // =====================================================================
 
-@interface PreferencesWindowController ()
+@interface PreferencesWindowController () <NSWindowDelegate>
 @property (weak)   ReaderCanvasView* canvas;
+@property (strong) ShortcutsView*    shortcutsView;
 @end
 
 @implementation PreferencesWindowController
@@ -296,6 +304,7 @@
     self = [super initWithWindow:w];
     if (self) {
         _canvas = canvas;
+        w.delegate = self;
         [self buildUI];
     }
     return self;
@@ -312,9 +321,18 @@
 
     NSTabViewItem* tab2 = [[NSTabViewItem alloc] initWithIdentifier:@"shortcuts"];
     tab2.label = @"快捷键";
-    tab2.view = [[ShortcutsView alloc] init];
+    self.shortcutsView = [[ShortcutsView alloc] init];
+    tab2.view = self.shortcutsView;
     [tabs addTabViewItem:tab2];
 
     [self.window.contentView addSubview:tabs];
+}
+
+// CRITICAL: when the user closes the prefs window mid-recording, the
+// KeyRecorderButton's NSEvent monitor would otherwise stay alive and
+// swallow every keyDown system-wide (including arrow keys). Force-stop
+// any in-progress recording on close.
+- (void)windowWillClose:(NSNotification*)note {
+    [self.shortcutsView stopAllRecording];
 }
 @end
