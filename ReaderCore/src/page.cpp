@@ -54,7 +54,7 @@ void Page::Init(int* p_index, header_t* header) {
 // Navigation
 // ---------------------------------------------------------------------------
 
-void Page::PageUp(BOOL draw) {
+void Page::PageUp(int draw) {
     if (!OnUpDownEvent(DRAW_PAGE_UP)) return;
     if (draw && !IsValid()) return;
     if (m_Index > 0) {
@@ -64,7 +64,7 @@ void Page::PageUp(BOOL draw) {
     }
 }
 
-void Page::PageDown(BOOL draw) {
+void Page::PageDown(int draw) {
     if (!OnUpDownEvent(DRAW_PAGE_DOWN)) return;
     if (draw && !IsValid()) return;
     if (m_Index + m_PageInfo.length < m_Length) {
@@ -74,7 +74,7 @@ void Page::PageDown(BOOL draw) {
     }
 }
 
-void Page::LineUp(BOOL draw) {
+void Page::LineUp(int draw) {
     if (!OnUpDownEvent(DRAW_LINE_UP)) return;
     if (draw && !IsValid()) return;
     if (m_Index > 0) {
@@ -89,7 +89,7 @@ void Page::LineUp(BOOL draw) {
     }
 }
 
-void Page::LineDown(BOOL draw) {
+void Page::LineDown(int draw) {
     if (!OnUpDownEvent(DRAW_LINE_DOWN)) return;
     if (draw && !IsValid()) return;
     if (m_Index + m_PageInfo.length < m_Length) {

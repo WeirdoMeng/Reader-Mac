@@ -53,6 +53,7 @@ set(READER_CORE_SOURCES
     src/text_book.cpp
     src/epub_book.cpp
     src/mobi_book.cpp
+    src/online_book.cpp
 )
 if(APPLE)
     enable_language(OBJCXX)
@@ -97,6 +98,11 @@ target_compile_options(reader_core PRIVATE
 
 # ---------------- CLI smoke test ----------------
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../ReaderCli ${CMAKE_BINARY_DIR}/ReaderCli)
+
+# ---------------- macOS app ----------------
+if(APPLE)
+    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../ReaderApp ${CMAKE_BINARY_DIR}/ReaderApp)
+endif()
 
 # ---------------- 单元测试 ----------------
 option(READER_BUILD_TESTS "Build ReaderCore unit tests" ON)

@@ -75,12 +75,14 @@ public:
     void SetTextMetrics(reader::ITextMetrics* metrics) { m_metrics = metrics; }
     void SetListener(reader::IBookListener* listener)  { m_listener = listener; }
 
-    // Navigation. `draw=true` notifies the listener to redraw; pass false
+    // Navigation. `draw=1` notifies the listener to redraw; pass 0
     // when the host is going to call CalcLayout itself.
-    void PageUp(BOOL draw = TRUE);
-    void PageDown(BOOL draw = TRUE);
-    void LineUp(BOOL draw = TRUE);
-    void LineDown(BOOL draw = TRUE);
+    // (Plain int to keep ABI identical between C++ and Objective-C++ where
+    // BOOL is `int` vs `bool` respectively.)
+    void PageUp(int draw = 1);
+    void PageDown(int draw = 1);
+    void LineUp(int draw = 1);
+    void LineDown(int draw = 1);
 
     // Compute the page layout for a given content rect (in pixels).
     // Updates m_Index, m_PageLength, m_PageInfo. The UI layer paints
