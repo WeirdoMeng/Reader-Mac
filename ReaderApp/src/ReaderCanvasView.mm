@@ -16,6 +16,7 @@
 
 #include <cstring>
 #include <memory>
+#include <vector>
 
 // ---------------------------------------------------------------------------
 // IBookListener that forwards events onto the main thread / NSView redraw.
@@ -449,66 +450,90 @@ static NSColor* unarchiveColor(NSData* d) {
 
     // text color
     NSColor* fg = self.textColorCache ?: [NSColor labelColor];
+    CGFloat fr=0, fgC=0, fb=0, fa=1;
+    [[fg colorUsingColorSpace:NSColorSpace.sRGBColorSpace]
+        getRed:&fr green:&fgC blue:&fb alpha:&fa];
+    CGContextSetRGBFillColor(ctx, fr, fgC, fb, fa);
 
     const int LEFT_MIN = _header.internal_border.left;
     const int TOP_MIN  = _header.internal_border.top;
+    const int CHAR_GAP = _header.char_gap;
 
     CGFloat fontPt = _header.font.lfHeight < 0 ?
                      (CGFloat)(-_header.font.lfHeight) : 16.0;
     NSFont* font = [NSFont fontWithName:@"PingFang SC" size:fontPt];
     if (!font) font = [NSFont systemFontOfSize:fontPt];
+    CTFontRef ctFont = (__bridge CTFontRef)font;
+    CGFloat ascent = CTFontGetAscent(ctFont);
 
-    // Draw per-line: build NSAttributedString for the whole line and use
-    // CTLineCreateWithAttributedString for proper kerning + complex script.
+    // 按 Page 引擎计算的字符坐标逐字符绘制：layout 与 render 完全一致，
+    // 右边距严格等于 internal_border.right。
     int y = TOP_MIN;
     for (int i = 0; i < pi->lines.used; ++i) {
         const line_info_t& line = pi->lines.lines[i];
-        if (line.length <= 0 || line.start < 0) {
-            y += line.cy + line.gap;
-            continue;
-        }
-        // Skip CRLF chars at the line end when rendering — they make the
-        // CTLine emit a visible glyph on macOS.
-        int eff_len = line.length;
-        while (eff_len > 0) {
-            wchar_t c = text[line.start + eff_len - 1];
-            if (c == 0x0A || c == 0x0D) --eff_len; else break;
-        }
-        if (eff_len <= 0) {
+        if (line.char_cnt <= 0) {
             y += line.cy + line.gap;
             continue;
         }
 
-        NSData* d = [NSData dataWithBytes:(text + line.start)
-                                   length:(NSUInteger)eff_len * sizeof(wchar_t)];
-        NSString* s = [[NSString alloc] initWithData:d
-                                            encoding:NSUTF32LittleEndianStringEncoding];
-        if (!s) { y += line.cy + line.gap; continue; }
+        // Skip trailing CR/LF
+        int eff = line.char_cnt;
+        while (eff > 0) {
+            wchar_t c = text[line.chars[eff - 1].idx];
+            if (c == 0x0A || c == 0x0D) --eff; else break;
+        }
+        if (eff <= 0) { y += line.cy + line.gap; continue; }
 
-        NSDictionary* attrs = @{
-            NSFontAttributeName: font,
-            NSForegroundColorAttributeName: fg
-        };
-        NSAttributedString* astr = [[NSAttributedString alloc] initWithString:s
-                                                                  attributes:attrs];
-        CTLineRef ctl = CTLineCreateWithAttributedString((__bridge CFAttributedStringRef)astr);
-        if (!ctl) { y += line.cy + line.gap; continue; }
+        // 把字符 → glyphs；非 BMP 字符（>0xFFFF）拆代理对
+        std::vector<UniChar> units;
+        std::vector<int>     unit2char;  // each UniChar 来自哪个 char_info_t
+        units.reserve(eff * 2);
+        unit2char.reserve(eff * 2);
+        for (int j = 0; j < eff; ++j) {
+            uint32_t cp = (uint32_t)text[line.chars[j].idx];
+            if (cp <= 0xFFFF) {
+                units.push_back((UniChar)cp);
+                unit2char.push_back(j);
+            } else {
+                uint32_t v = cp - 0x10000;
+                units.push_back((UniChar)(0xD800 | (v >> 10)));
+                units.push_back((UniChar)(0xDC00 | (v & 0x3FF)));
+                unit2char.push_back(j);
+                unit2char.push_back(j);
+            }
+        }
 
-        // baseline = y + ascent
+        size_t glyphCount = units.size();
+        std::vector<CGGlyph> glyphs(glyphCount);
+        if (!CTFontGetGlyphsForCharacters(ctFont, units.data(),
+                                          glyphs.data(), (CFIndex)glyphCount)) {
+            y += line.cy + line.gap;
+            continue;
+        }
+
+        // 每个 glyph 的 x 坐标 = LEFT_MIN + line.x + (该字符 char.cx 累计前缀和)
+        std::vector<int> charX(eff + 1, 0);
+        for (int j = 0; j < eff; ++j) {
+            charX[j + 1] = charX[j] + line.chars[j].cx + CHAR_GAP;
+        }
+
+        std::vector<CGPoint> positions(glyphCount);
+        // 反转 y 写到下方再变换；这里 baseline = y + ascent
+        CGFloat baseY = (CGFloat)y + ascent;
+        for (size_t k = 0; k < glyphCount; ++k) {
+            int j = unit2char[k];
+            positions[k].x = (CGFloat)(LEFT_MIN + line.x + charX[j]);
+            positions[k].y = baseY;
+        }
+
         CGContextSaveGState(ctx);
-        CGContextSetTextMatrix(ctx, CGAffineTransformIdentity);
-        CGContextSetTextPosition(ctx,
-                                 (CGFloat)(LEFT_MIN + line.x),
-                                 (CGFloat)(y + (int)CTFontGetAscent((CTFontRef)font)));
-        // Our view is flipped; flip y back inside the text draw so glyphs
-        // are upright.
+        // 翻转坐标系：view 是 isFlipped=YES，y 向下增；
+        // Core Text 字形需要 y 向上的坐标系，沿 y 镜像一次。
         CGContextScaleCTM(ctx, 1.0, -1.0);
-        CGContextSetTextPosition(ctx,
-                                 (CGFloat)(LEFT_MIN + line.x),
-                                 (CGFloat)(-(y + (int)CTFontGetAscent((CTFontRef)font))));
-        CTLineDraw(ctl, ctx);
+        for (auto& p : positions) p.y = -p.y;
+        CTFontDrawGlyphs(ctFont, glyphs.data(), positions.data(),
+                         glyphCount, ctx);
         CGContextRestoreGState(ctx);
-        CFRelease(ctl);
 
         y += line.cy + line.gap;
     }

@@ -175,9 +175,11 @@ static void applyShortcut(NSMenuItem* mi, NSString* actionId) {
     // 应用菜单（精简版）
     NSMenuItem* appItem = [[NSMenuItem alloc] init];
     NSMenu* appMenu = [[NSMenu alloc] init];
-    [appMenu addItemWithTitle:@"关于摸鱼书摊"
-                       action:@selector(orderFrontStandardAboutPanel:)
-                keyEquivalent:@""];
+    NSMenuItem* about = [[NSMenuItem alloc] initWithTitle:@"关于摸鱼书摊"
+                                                    action:@selector(showAboutPanel:)
+                                             keyEquivalent:@""];
+    about.target = self;
+    [appMenu addItem:about];
     NSMenuItem* prefs = [[NSMenuItem alloc] initWithTitle:@"偏好设置…"
                                                     action:@selector(openPreferences:)
                                              keyEquivalent:@""];
@@ -296,37 +298,44 @@ static void applyShortcut(NSMenuItem* mi, NSString* actionId) {
     goItem.submenu = goMenu;
     [mainMenu addItem:goItem];
 
-    // 窗口菜单（系统标准）
-    NSMenuItem* windowItem = [[NSMenuItem alloc] init];
-    NSMenu* windowMenu = [[NSMenu alloc] initWithTitle:@"窗口"];
-    [windowMenu addItemWithTitle:@"最小化"
-                          action:@selector(performMiniaturize:)
-                   keyEquivalent:@"m"];
-    [windowMenu addItemWithTitle:@"缩放"
-                          action:@selector(performZoom:)
-                   keyEquivalent:@""];
-    windowItem.submenu = windowMenu;
-    NSApp.windowsMenu = windowMenu;
-    [mainMenu addItem:windowItem];
-
-    // 帮助菜单
-    NSMenuItem* helpItem = [[NSMenuItem alloc] init];
-    NSMenu* helpMenu = [[NSMenu alloc] initWithTitle:@"帮助"];
-    NSMenuItem* repo = [[NSMenuItem alloc] initWithTitle:@"打开项目主页…"
-                                                   action:@selector(openHomepage:)
-                                            keyEquivalent:@""];
-    repo.target = self;
-    [helpMenu addItem:repo];
-    helpItem.submenu = helpMenu;
-    NSApp.helpMenu = helpMenu;
-    [mainMenu addItem:helpItem];
-
     NSApp.mainMenu = mainMenu;
 }
 
-- (void)openHomepage:(id)sender {
-    [NSWorkspace.sharedWorkspace
-        openURL:[NSURL URLWithString:@"https://github.com/WeirdoMeng/Reader-Mac"]];
+// 自定义关于面板，含项目主页链接
+- (void)showAboutPanel:(id)sender {
+    NSString* version = NSBundle.mainBundle.infoDictionary[@"CFBundleShortVersionString"];
+    NSString* build   = NSBundle.mainBundle.infoDictionary[@"CFBundleVersion"];
+
+    NSMutableAttributedString* credits = [[NSMutableAttributedString alloc] init];
+
+    NSDictionary* normal = @{
+        NSFontAttributeName: [NSFont systemFontOfSize:11],
+        NSForegroundColorAttributeName: [NSColor labelColor]
+    };
+    NSMutableParagraphStyle* ps = [[NSMutableParagraphStyle alloc] init];
+    ps.alignment = NSTextAlignmentCenter;
+    [credits appendAttributedString:[[NSAttributedString alloc]
+        initWithString:@"轻量级 Mac 阅读器，支持 TXT / EPUB / MOBI。\n\n"
+            attributes:@{ NSFontAttributeName: [NSFont systemFontOfSize:11],
+                          NSForegroundColorAttributeName: [NSColor labelColor],
+                          NSParagraphStyleAttributeName: ps }]];
+
+    NSURL* url = [NSURL URLWithString:@"https://github.com/WeirdoMeng/Reader-Mac"];
+    NSAttributedString* link = [[NSAttributedString alloc]
+        initWithString:@"打开项目主页"
+            attributes:@{ NSLinkAttributeName: url,
+                          NSFontAttributeName: [NSFont systemFontOfSize:11],
+                          NSParagraphStyleAttributeName: ps,
+                          NSUnderlineStyleAttributeName: @(NSUnderlineStyleSingle) }];
+    [credits appendAttributedString:link];
+
+    [NSApp orderFrontStandardAboutPanelWithOptions:@{
+        @"ApplicationName":    @"摸鱼书摊",
+        @"ApplicationVersion": version ?: @"0.2.0",
+        @"Version":            build   ?: @"1",
+        @"Credits":            credits,
+        @"Copyright":          @"开源软件",
+    }];
 }
 
 // ---------- Go menu actions ----------

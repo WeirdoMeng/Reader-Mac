@@ -127,6 +127,8 @@ static NSString* prefsKey(NSString* actionId) {
         setObject:@{@"key": shortcut.keyChar ?: @"",
                     @"mods": @(shortcut.modifiers)}
            forKey:prefsKey(actionId)];
+    NSLog(@"[KeyBindings] setShortcut %@ → '%@' mods=0x%lx",
+          actionId, shortcut.keyChar, (unsigned long)shortcut.modifiers);
     [NSNotificationCenter.defaultCenter
         postNotificationName:KeyBindingsDidChangeNotification object:self];
 }
