@@ -4,6 +4,9 @@
 @interface AppDelegate ()
 @property (strong) NSWindow* window;
 @property (strong) ReaderCanvasView* canvas;
+@property (assign) NSWindowStyleMask savedStyleMask;
+@property (assign) BOOL borderless;
+@property (assign) BOOL topMost;
 @end
 
 @implementation AppDelegate
@@ -25,10 +28,25 @@
     self.canvas.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     self.window.contentView = self.canvas;
     [self.window makeFirstResponder:self.canvas];
+    self.window.movableByWindowBackground = YES;  // borderless 时也能拖
     [self.window makeKeyAndOrderFront:nil];
+
+    self.savedStyleMask = style;
+    self.borderless = NO;
+    self.topMost = NO;
 
     [self installMenu];
     [NSApp activateIgnoringOtherApps:YES];
+
+    // Restore last session
+    NSUserDefaults* d = NSUserDefaults.standardUserDefaults;
+    NSString* lastFile = [d stringForKey:@"lastFile"];
+    int lastIndex = (int)[d integerForKey:@"lastIndex"];
+    if (lastFile.length > 0 &&
+        [NSFileManager.defaultManager fileExistsAtPath:lastFile]) {
+        [self.canvas openFileAtPath:lastFile restoreIndex:lastIndex];
+        self.window.title = lastFile.lastPathComponent;
+    }
 }
 
 - (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication*)sender {
@@ -67,7 +85,60 @@
     fileItem.submenu = fileMenu;
     [mainMenu addItem:fileItem];
 
+    // View menu
+    NSMenuItem* viewItem = [[NSMenuItem alloc] init];
+    NSMenu* viewMenu = [[NSMenu alloc] initWithTitle:@"View"];
+    NSMenuItem* borderless = [[NSMenuItem alloc] initWithTitle:@"Toggle Borderless"
+                                                         action:@selector(toggleBorderless:)
+                                                  keyEquivalent:@"b"];
+    borderless.keyEquivalentModifierMask = NSEventModifierFlagCommand | NSEventModifierFlagShift;
+    borderless.target = self;
+    [viewMenu addItem:borderless];
+    NSMenuItem* fullscreen = [[NSMenuItem alloc] initWithTitle:@"Toggle Full Screen"
+                                                         action:@selector(toggleFullScreen:)
+                                                  keyEquivalent:@"f"];
+    fullscreen.keyEquivalentModifierMask = NSEventModifierFlagCommand | NSEventModifierFlagControl;
+    fullscreen.target = self;
+    [viewMenu addItem:fullscreen];
+    NSMenuItem* top = [[NSMenuItem alloc] initWithTitle:@"Keep on Top"
+                                                  action:@selector(toggleTopMost:)
+                                           keyEquivalent:@"t"];
+    top.target = self;
+    [viewMenu addItem:top];
+    viewItem.submenu = viewMenu;
+    [mainMenu addItem:viewItem];
+
     NSApp.mainMenu = mainMenu;
+}
+
+// ---------- View toggles ----------
+
+- (void)toggleBorderless:(id)sender {
+    self.borderless = !self.borderless;
+    NSRect frame = self.window.frame;
+    if (self.borderless) {
+        self.savedStyleMask = self.window.styleMask;
+        self.window.styleMask = NSWindowStyleMaskBorderless | NSWindowStyleMaskResizable;
+        self.window.titleVisibility = NSWindowTitleHidden;
+    } else {
+        self.window.styleMask = self.savedStyleMask;
+        self.window.titleVisibility = NSWindowTitleVisible;
+        self.window.title = self.canvas ? self.window.title : @"Reader-Mac";
+    }
+    [self.window setFrame:frame display:YES];
+    [self.window makeFirstResponder:self.canvas];
+}
+
+- (void)toggleFullScreen:(id)sender {
+    [self.window toggleFullScreen:sender];
+}
+
+- (void)toggleTopMost:(id)sender {
+    self.topMost = !self.topMost;
+    self.window.level = self.topMost ? NSFloatingWindowLevel : NSNormalWindowLevel;
+    if ([sender isKindOfClass:[NSMenuItem class]]) {
+        ((NSMenuItem*)sender).state = self.topMost ? NSControlStateValueOn : NSControlStateValueOff;
+    }
 }
 
 - (void)openDocument:(id)sender {

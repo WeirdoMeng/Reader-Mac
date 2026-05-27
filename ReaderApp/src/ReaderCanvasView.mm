@@ -38,6 +38,11 @@ public:
     }
 };
 
+@interface ReaderCanvasView ()
+@property (copy)   NSString* currentFilePath;
+@property (assign) int       pendingRestoreIndex;
+@end
+
 @implementation ReaderCanvasView {
     std::unique_ptr<Book>                       _book;
     std::unique_ptr<reader_mac::CoreTextMetrics> _metrics;
@@ -67,11 +72,21 @@ public:
 
 - (void)closeBook {
     _book.reset();
+    self.currentFilePath = nil;
     [self setNeedsDisplay:YES];
 }
 
+- (NSString*)currentPath { return self.currentFilePath; }
+- (int)currentIndex      { return _index; }
+
 - (BOOL)openFileAtPath:(NSString*)path {
+    return [self openFileAtPath:path restoreIndex:0];
+}
+
+- (BOOL)openFileAtPath:(NSString*)path restoreIndex:(int)idx {
     [self closeBook];
+    self.currentFilePath = path;
+    self.pendingRestoreIndex = idx;
     NSString* lower = path.lowercaseString;
     if ([lower hasSuffix:@".epub"]) {
         _book = std::make_unique<EpubBook>();
@@ -101,9 +116,30 @@ public:
 
 - (void)relayoutAndRedraw {
     if (!_book) { [self setNeedsDisplay:YES]; return; }
+    // Apply pending restore-index once the parser has populated m_Text.
+    if (self.pendingRestoreIndex > 0 && _book->GetTextLength() > 0) {
+        int clamped = self.pendingRestoreIndex;
+        int total = _book->GetTextLength();
+        if (clamped < 0) clamped = 0;
+        if (clamped > total - 1) clamped = total - 1;
+        _index = clamped;
+        self.pendingRestoreIndex = 0;
+    }
     NSSize sz = self.bounds.size;
     _book->CalcLayout((int)sz.width, (int)sz.height);
+    [self saveProgressToUserDefaults];
     [self setNeedsDisplay:YES];
+}
+
+- (void)saveProgressToUserDefaults {
+    NSUserDefaults* d = NSUserDefaults.standardUserDefaults;
+    if (self.currentFilePath) {
+        [d setObject:self.currentFilePath forKey:@"lastFile"];
+        [d setInteger:_index             forKey:@"lastIndex"];
+    } else {
+        [d removeObjectForKey:@"lastFile"];
+        [d removeObjectForKey:@"lastIndex"];
+    }
 }
 
 - (void)viewDidEndLiveResize {
