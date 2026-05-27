@@ -75,7 +75,13 @@ char* utf16_to_utf8_bom(const wchar_t* str, int size, int* len) {
 #else  // !_WIN32
 
 // ---- POSIX: iconv-based, treating wchar_t as UTF-32 (macOS ships 4-byte wchar_t) ----
-// "WCHAR_T" is the iconv name for the platform's wchar_t encoding.
+// macOS libiconv's WCHAR_T alias is broken; use explicit UTF-32 with the
+// platform's native endianness instead.
+#if defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+#define READER_WCHAR_ENCODING "UTF-32BE"
+#else
+#define READER_WCHAR_ENCODING "UTF-32LE"
+#endif
 
 static char* iconv_convert(const char* from_enc,
                            const char* to_enc,
@@ -110,19 +116,19 @@ static char* iconv_convert(const char* from_enc,
 }
 
 wchar_t* ansi_to_utf16(const char* str, int size, int* len) {
-    return (wchar_t*)iconv_convert("GBK", "WCHAR_T", str, (size_t)size,
+    return (wchar_t*)iconv_convert("GBK", READER_WCHAR_ENCODING, str, (size_t)size,
                                    sizeof(wchar_t), len);
 }
 char* utf16_to_ansi(const wchar_t* str, int size, int* len) {
-    return iconv_convert("WCHAR_T", "GBK", (const char*)str,
+    return iconv_convert(READER_WCHAR_ENCODING, "GBK", (const char*)str,
                          (size_t)size * sizeof(wchar_t), 1, len);
 }
 wchar_t* utf8_to_utf16(const char* str, int size, int* len) {
-    return (wchar_t*)iconv_convert("UTF-8", "WCHAR_T", str, (size_t)size,
+    return (wchar_t*)iconv_convert("UTF-8", READER_WCHAR_ENCODING, str, (size_t)size,
                                    sizeof(wchar_t), len);
 }
 char* utf16_to_utf8(const wchar_t* str, int size, int* len) {
-    return iconv_convert("WCHAR_T", "UTF-8", (const char*)str,
+    return iconv_convert(READER_WCHAR_ENCODING, "UTF-8", (const char*)str,
                          (size_t)size * sizeof(wchar_t), 1, len);
 }
 char* utf16_to_utf8_bom(const wchar_t* str, int size, int* len) {

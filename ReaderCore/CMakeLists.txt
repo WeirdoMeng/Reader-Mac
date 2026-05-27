@@ -46,6 +46,7 @@ add_library(reader_core STATIC
     src/platform_posix.cpp
     src/file_system_posix.cpp
     src/utils.cpp
+    src/html_parser.cpp
 )
 # iconv on macOS lives in libc; no extra link needed. On Linux it's also libc.
 # On Windows there's no iconv path (utils.cpp falls back to MultiByteToWideChar).
@@ -64,7 +65,29 @@ target_link_libraries(reader_core
 )
 target_include_directories(reader_core PUBLIC ${XML2_INCLUDE_DIR})
 
+# iconv on macOS is a separate library
+if(APPLE)
+    find_library(ICONV_LIB iconv REQUIRED)
+    target_link_libraries(reader_core PUBLIC ${ICONV_LIB})
+endif()
+
 # 警告级别（严格但允许的范围）
 target_compile_options(reader_core PRIVATE
     -Wall -Wextra -Wno-unused-parameter -Wno-unused-function
 )
+
+# ---------------- 单元测试 ----------------
+option(READER_BUILD_TESTS "Build ReaderCore unit tests" ON)
+if(READER_BUILD_TESTS)
+    add_executable(reader_core_tests
+        tests/test_main.cpp
+        tests/test_utils.cpp
+        tests/test_html_parser.cpp
+    )
+    target_include_directories(reader_core_tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/third_party
+    )
+    target_link_libraries(reader_core_tests PRIVATE reader_core)
+    enable_testing()
+    add_test(NAME reader_core_tests COMMAND reader_core_tests)
+endif()
