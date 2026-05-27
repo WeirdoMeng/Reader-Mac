@@ -3,6 +3,7 @@ set(APP_SOURCES
     src/AppDelegate.mm
     src/ReaderCanvasView.mm
     src/CoreTextMetrics.mm
+    src/PreferencesWindowController.mm
 )
 
 add_executable(ReaderMac MACOSX_BUNDLE ${APP_SOURCES})

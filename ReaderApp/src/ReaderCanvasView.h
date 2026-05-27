@@ -22,4 +22,32 @@
 - (NSString*)currentPath;
 - (int)currentIndex;
 
+// Display setting accessors (apply triggers relayout).
+- (int)fontSize;
+- (void)setFontSize:(int)pt;
+- (int)lineGap;
+- (void)setLineGap:(int)px;
+- (int)paragraphGap;
+- (void)setParagraphGap:(int)px;
+- (BOOL)firstLineIndent;
+- (void)setFirstLineIndent:(BOOL)on;
+- (NSColor*)textColor;
+- (void)setTextColor:(NSColor*)c;
+- (NSColor*)backgroundColor;
+- (void)setBackgroundColor:(NSColor*)c;
+
+// Save/restore the whole display profile.
+- (void)loadDisplayProfileFromUserDefaults;
+- (void)saveDisplayProfileToUserDefaults;
+
+// Chapters
+- (NSArray<NSDictionary*>*)chapters;      // each dict: {title, index}
+- (void)jumpToTextIndex:(int)idx;
+- (void)jumpToChapterAtListIndex:(int)i;  // 0-based
+
+// Bookmarks (NSUserDefaults-backed, per-file path)
+- (NSArray<NSNumber*>*)bookmarks;
+- (void)addBookmarkAtCurrentLocation;
+- (void)removeBookmarkAtIndex:(int)i;
+
 @end

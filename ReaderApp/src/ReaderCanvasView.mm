@@ -41,6 +41,8 @@ public:
 @interface ReaderCanvasView ()
 @property (copy)   NSString* currentFilePath;
 @property (assign) int       pendingRestoreIndex;
+@property (strong) NSColor*  textColorCache;
+@property (strong) NSColor*  bgColorCache;
 @end
 
 @implementation ReaderCanvasView {
@@ -60,9 +62,11 @@ public:
         _metrics  = std::make_unique<reader_mac::CoreTextMetrics>();
         _listener = std::make_unique<ViewListener>();
         _listener->view = self;
+        self.textColorCache = [NSColor labelColor];
+        self.bgColorCache   = [NSColor windowBackgroundColor];
+        [self loadDisplayProfileFromUserDefaults];
         self.wantsLayer = YES;
-        self.layer.backgroundColor =
-            [NSColor.windowBackgroundColor CGColor];
+        self.layer.backgroundColor = [self.bgColorCache CGColor];
     }
     return self;
 }
@@ -131,6 +135,160 @@ public:
     [self setNeedsDisplay:YES];
 }
 
+// ---------- chapters / bookmarks ----------
+
+- (NSArray<NSDictionary*>*)chapters {
+    if (!_book) return @[];
+    NSMutableArray* out = [NSMutableArray array];
+    chapters_t* chs = _book->GetChapters();
+    for (auto& c : *chs) {
+        NSData* d = [NSData dataWithBytes:c.title.data()
+                                   length:c.title.size() * sizeof(wchar_t)];
+        NSString* title = [[NSString alloc] initWithData:d
+                                                encoding:NSUTF32LittleEndianStringEncoding] ?: @"(untitled)";
+        [out addObject:@{@"title": title, @"index": @(c.index)}];
+    }
+    return out;
+}
+
+- (void)jumpToTextIndex:(int)idx {
+    if (!_book) return;
+    int total = _book->GetTextLength();
+    if (idx < 0) idx = 0;
+    if (idx > total - 1) idx = total > 0 ? total - 1 : 0;
+    _index = idx;
+    [self relayoutAndRedraw];
+}
+
+- (void)jumpToChapterAtListIndex:(int)i {
+    if (!_book) return;
+    _book->JumpChapter(i);
+    // JumpChapter already fires Redraw event; ensure layout after jump.
+    [self relayoutAndRedraw];
+}
+
+static NSString* bookmarkKeyFor(NSString* file) {
+    return [NSString stringWithFormat:@"bookmarks::%@", file];
+}
+
+- (NSArray<NSNumber*>*)bookmarks {
+    if (!self.currentFilePath) return @[];
+    NSArray* arr = [NSUserDefaults.standardUserDefaults
+                      arrayForKey:bookmarkKeyFor(self.currentFilePath)];
+    return arr ?: @[];
+}
+
+- (void)addBookmarkAtCurrentLocation {
+    if (!self.currentFilePath || !_book) return;
+    NSMutableArray* arr = [[self bookmarks] mutableCopy] ?: [NSMutableArray array];
+    NSNumber* mark = @(_index);
+    if (![arr containsObject:mark]) [arr addObject:mark];
+    [NSUserDefaults.standardUserDefaults
+        setObject:arr forKey:bookmarkKeyFor(self.currentFilePath)];
+}
+
+- (void)removeBookmarkAtIndex:(int)i {
+    if (!self.currentFilePath) return;
+    NSMutableArray* arr = [[self bookmarks] mutableCopy];
+    if (i < 0 || i >= (int)arr.count) return;
+    [arr removeObjectAtIndex:i];
+    [NSUserDefaults.standardUserDefaults
+        setObject:arr forKey:bookmarkKeyFor(self.currentFilePath)];
+}
+
+// ---------- display setting accessors ----------
+
+- (int)fontSize {
+    return _header.font.lfHeight < 0 ? -_header.font.lfHeight
+                                     : (_header.font.lfHeight > 0
+                                            ? _header.font.lfHeight
+                                            : 16);
+}
+- (void)setFontSize:(int)pt {
+    if (pt < 8)  pt = 8;
+    if (pt > 64) pt = 64;
+    _header.font.lfHeight       = -pt;
+    _header.font_title.lfHeight = -pt;
+    [self relayoutAndRedraw];
+    [self saveDisplayProfileToUserDefaults];
+}
+
+- (int)lineGap { return _header.line_gap; }
+- (void)setLineGap:(int)px {
+    if (px < 0) px = 0;
+    if (px > 40) px = 40;
+    _header.line_gap = px;
+    [self relayoutAndRedraw];
+    [self saveDisplayProfileToUserDefaults];
+}
+
+- (int)paragraphGap { return _header.paragraph_gap; }
+- (void)setParagraphGap:(int)px {
+    if (px < 0) px = 0;
+    if (px > 80) px = 80;
+    _header.paragraph_gap = px;
+    [self relayoutAndRedraw];
+    [self saveDisplayProfileToUserDefaults];
+}
+
+- (BOOL)firstLineIndent { return _header.line_indent != 0; }
+- (void)setFirstLineIndent:(BOOL)on {
+    _header.line_indent = on ? 1 : 0;
+    [self relayoutAndRedraw];
+    [self saveDisplayProfileToUserDefaults];
+}
+
+- (NSColor*)textColor { return self.textColorCache; }
+- (void)setTextColor:(NSColor*)c {
+    self.textColorCache = c ?: [NSColor labelColor];
+    [self setNeedsDisplay:YES];
+    [self saveDisplayProfileToUserDefaults];
+}
+
+- (NSColor*)backgroundColor { return self.bgColorCache; }
+- (void)setBackgroundColor:(NSColor*)c {
+    self.bgColorCache = c ?: [NSColor windowBackgroundColor];
+    self.layer.backgroundColor = [self.bgColorCache CGColor];
+    [self setNeedsDisplay:YES];
+    [self saveDisplayProfileToUserDefaults];
+}
+
+// ---------- profile persistence ----------
+
+static NSData* archiveColor(NSColor* c) {
+    if (!c) return nil;
+    return [NSKeyedArchiver archivedDataWithRootObject:c
+                                 requiringSecureCoding:NO error:nil];
+}
+static NSColor* unarchiveColor(NSData* d) {
+    if (!d) return nil;
+    return [NSKeyedUnarchiver unarchivedObjectOfClass:NSColor.class
+                                             fromData:d error:nil];
+}
+
+- (void)loadDisplayProfileFromUserDefaults {
+    NSUserDefaults* d = NSUserDefaults.standardUserDefaults;
+    if ([d objectForKey:@"fontSize"])    _header.font.lfHeight = -(int)[d integerForKey:@"fontSize"];
+    if ([d objectForKey:@"fontSize"])    _header.font_title.lfHeight = _header.font.lfHeight;
+    if ([d objectForKey:@"lineGap"])     _header.line_gap = (int)[d integerForKey:@"lineGap"];
+    if ([d objectForKey:@"paragraphGap"])_header.paragraph_gap = (int)[d integerForKey:@"paragraphGap"];
+    if ([d objectForKey:@"lineIndent"])  _header.line_indent = (int)[d integerForKey:@"lineIndent"];
+    NSColor* tc = unarchiveColor([d objectForKey:@"textColor"]);
+    NSColor* bc = unarchiveColor([d objectForKey:@"bgColor"]);
+    if (tc) self.textColorCache = tc;
+    if (bc) self.bgColorCache   = bc;
+}
+
+- (void)saveDisplayProfileToUserDefaults {
+    NSUserDefaults* d = NSUserDefaults.standardUserDefaults;
+    [d setInteger:[self fontSize]      forKey:@"fontSize"];
+    [d setInteger:_header.line_gap     forKey:@"lineGap"];
+    [d setInteger:_header.paragraph_gap forKey:@"paragraphGap"];
+    [d setInteger:_header.line_indent  forKey:@"lineIndent"];
+    [d setObject:archiveColor(self.textColorCache) forKey:@"textColor"];
+    [d setObject:archiveColor(self.bgColorCache)   forKey:@"bgColor"];
+}
+
 - (void)saveProgressToUserDefaults {
     NSUserDefaults* d = NSUserDefaults.standardUserDefaults;
     if (self.currentFilePath) {
@@ -178,11 +336,28 @@ public:
     if (_book) _book->PageUp();
 }
 
-// ---------- scroll wheel: line up / down ----------
+// ---------- scroll wheel: line up / down (Ctrl = window alpha) ----------
 - (void)scrollWheel:(NSEvent*)event {
+    BOOL ctrl  = (event.modifierFlags & NSEventModifierFlagControl) != 0;
+    BOOL shift = (event.modifierFlags & NSEventModifierFlagShift)   != 0;
+    if (ctrl) {
+        NSWindow* w = self.window;
+        CGFloat a = w.alphaValue;
+        if (shift) {
+            // Ctrl + Shift: snap to extreme
+            a = (event.deltaY > 0) ? 0.05 : 1.0;
+        } else {
+            a += (event.deltaY > 0) ? -0.05 : 0.05;
+            if (a < 0.1) a = 0.1;
+            if (a > 1.0) a = 1.0;
+        }
+        w.alphaValue = a;
+        [NSUserDefaults.standardUserDefaults setDouble:a forKey:@"windowAlpha"];
+        return;
+    }
     if (!_book) return;
-    if (event.deltaY > 0.5)      _book->LineUp();
-    else if (event.deltaY < -0.5) _book->LineDown();
+    if (event.deltaY > 0.5)        _book->LineUp();
+    else if (event.deltaY < -0.5)  _book->LineDown();
 }
 
 // ---------------------------------------------------------------------------
@@ -193,8 +368,7 @@ public:
     if (!ctx) return;
 
     // background
-    CGContextSetFillColorWithColor(ctx,
-        [NSColor.windowBackgroundColor CGColor]);
+    CGContextSetFillColorWithColor(ctx, [self.bgColorCache CGColor]);
     CGContextFillRect(ctx, self.bounds);
 
     if (!_book) {
@@ -218,16 +392,15 @@ public:
     if (!text) return;
 
     // text color
-    NSColor* fg = [NSColor labelColor];
-    CGFloat r = 0, g = 0, b = 0, a = 1;
-    [[fg colorUsingColorSpace:NSColorSpace.sRGBColorSpace]
-        getRed:&r green:&g blue:&b alpha:&a];
+    NSColor* fg = self.textColorCache ?: [NSColor labelColor];
 
     const int LEFT_MIN = _header.internal_border.left;
     const int TOP_MIN  = _header.internal_border.top;
 
-    NSFont* font = [NSFont fontWithName:@"PingFang SC" size:16];
-    if (!font) font = [NSFont systemFontOfSize:16];
+    CGFloat fontPt = _header.font.lfHeight < 0 ?
+                     (CGFloat)(-_header.font.lfHeight) : 16.0;
+    NSFont* font = [NSFont fontWithName:@"PingFang SC" size:fontPt];
+    if (!font) font = [NSFont systemFontOfSize:fontPt];
 
     // Draw per-line: build NSAttributedString for the whole line and use
     // CTLineCreateWithAttributedString for proper kerning + complex script.
