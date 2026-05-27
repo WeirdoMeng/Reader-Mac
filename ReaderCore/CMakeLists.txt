@@ -48,6 +48,7 @@ add_library(reader_core STATIC
     src/utils.cpp
     src/html_parser.cpp
     src/defaults.cpp
+    src/page.cpp
 )
 # iconv on macOS lives in libc; no extra link needed. On Linux it's also libc.
 # On Windows there's no iconv path (utils.cpp falls back to MultiByteToWideChar).
@@ -84,6 +85,7 @@ if(READER_BUILD_TESTS)
         tests/test_main.cpp
         tests/test_utils.cpp
         tests/test_html_parser.cpp
+        tests/test_page.cpp
     )
     target_include_directories(reader_core_tests PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/third_party

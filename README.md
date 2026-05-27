@@ -1,7 +1,7 @@
 # Reader-Mac
 
 将 [binbyu/Reader](https://github.com/binbyu/Reader) Windows 桌面阅读器移植为原生 macOS 应用。
-
+/Users/apple/Desktop/AppleSpace/Reader-Mac/README.md
 ## 项目结构
 
 ```
