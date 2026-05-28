@@ -65,4 +65,25 @@
 - (void)jumpPrevChapter;
 - (void)jumpNextChapter;
 
+// 字号快速增减（菜单 Cmd+= / Cmd+-）
+- (void)increaseFontSize;
+- (void)decreaseFontSize;
+
+// 跳转到文本指定位置 / 百分比
+- (void)jumpToPercent:(double)pct;   // 0..100
+
+// 自动翻页
+- (BOOL)isAutoPaging;
+- (void)toggleAutoPaging;
+- (void)setAutoPagingInterval:(double)seconds;
+
+// 全文搜索：返回匹配总数；调 next/prev 跳转
+- (NSUInteger)searchText:(NSString*)keyword;
+- (void)jumpToNextMatch;
+- (void)jumpToPrevMatch;
+- (NSString*)currentSearchInfo;     // "3/27" 这种
+
+// 当前章节标题（用于窗口标题栏）
+- (NSString*)currentChapterTitle;
+
 @end

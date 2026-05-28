@@ -309,6 +309,50 @@ static void applyShortcut(NSMenuItem* mi, NSString* actionId) {
     self.boundItems[@"addBookmark"] = addMark;
     [goMenu addItem:addMark];
 
+    [goMenu addItem:[NSMenuItem separatorItem]];
+
+    NSMenuItem* find = [[NSMenuItem alloc] initWithTitle:@"全文搜索…"
+                                                   action:@selector(showSearchPanel:)
+                                            keyEquivalent:@""];
+    find.target = self;
+    applyShortcut(find, @"findInBook");
+    self.boundItems[@"findInBook"] = find;
+    [goMenu addItem:find];
+
+    NSMenuItem* jumpPct = [[NSMenuItem alloc] initWithTitle:@"百分比跳转…"
+                                                      action:@selector(showPercentJump:)
+                                               keyEquivalent:@""];
+    jumpPct.target = self;
+    applyShortcut(jumpPct, @"jumpPercent");
+    self.boundItems[@"jumpPercent"] = jumpPct;
+    [goMenu addItem:jumpPct];
+
+    NSMenuItem* autoPage = [[NSMenuItem alloc] initWithTitle:@"自动翻页（开关）"
+                                                       action:@selector(toggleAutoPage:)
+                                                keyEquivalent:@""];
+    autoPage.target = self;
+    applyShortcut(autoPage, @"autoPage");
+    self.boundItems[@"autoPage"] = autoPage;
+    [goMenu addItem:autoPage];
+
+    [goMenu addItem:[NSMenuItem separatorItem]];
+
+    NSMenuItem* incFont = [[NSMenuItem alloc] initWithTitle:@"放大字号"
+                                                      action:@selector(increaseFont:)
+                                               keyEquivalent:@""];
+    incFont.target = self;
+    applyShortcut(incFont, @"increaseFont");
+    self.boundItems[@"increaseFont"] = incFont;
+    [goMenu addItem:incFont];
+
+    NSMenuItem* decFont = [[NSMenuItem alloc] initWithTitle:@"缩小字号"
+                                                      action:@selector(decreaseFont:)
+                                               keyEquivalent:@""];
+    decFont.target = self;
+    applyShortcut(decFont, @"decreaseFont");
+    self.boundItems[@"decreaseFont"] = decFont;
+    [goMenu addItem:decFont];
+
     NSMenuItem* bookmarksItem = [[NSMenuItem alloc] initWithTitle:@"书签列表"
                                                             action:nil
                                                      keyEquivalent:@""];
@@ -507,6 +551,64 @@ static void applyShortcut(NSMenuItem* mi, NSString* actionId) {
         [self.canvas removeBookmarkAtIndex:i];
     }
 }
+
+// ---------- 全文搜索面板 ----------
+- (void)showSearchPanel:(id)sender {
+    if (!self.canvas.hasBook) return;
+    NSAlert* alert = [[NSAlert alloc] init];
+    alert.messageText = @"全文搜索";
+    alert.informativeText = @"输入关键词，回车搜索。再次打开按 ↓ 跳到下一处。";
+    [alert addButtonWithTitle:@"下一个"];
+    [alert addButtonWithTitle:@"上一个"];
+    [alert addButtonWithTitle:@"取消"];
+    NSTextField* input = [[NSTextField alloc] initWithFrame:NSMakeRect(0, 0, 280, 24)];
+    input.stringValue = [self.canvas valueForKey:@"lastSearchKeyword"] ?: @"";
+    alert.accessoryView = input;
+    [alert.window setInitialFirstResponder:input];
+
+    NSModalResponse r = [alert runModal];
+    NSString* kw = input.stringValue;
+    if (kw.length == 0) return;
+    NSUInteger n = [self.canvas searchText:kw];
+    if (n == 0) {
+        NSAlert* miss = [[NSAlert alloc] init];
+        miss.messageText = @"没有找到匹配";
+        miss.informativeText = [NSString stringWithFormat:@"\"%@\" 在当前书中未出现。", kw];
+        [miss runModal];
+        return;
+    }
+    if (r == NSAlertSecondButtonReturn) [self.canvas jumpToPrevMatch];
+    else [self.canvas jumpToNextMatch];
+    self.window.title = [NSString stringWithFormat:@"%@  [搜索 %@]",
+                         self.window.title.length ? self.window.title : @"摸鱼书摊",
+                         [self.canvas currentSearchInfo]];
+}
+
+// ---------- 百分比跳转 ----------
+- (void)showPercentJump:(id)sender {
+    if (!self.canvas.hasBook) return;
+    NSAlert* alert = [[NSAlert alloc] init];
+    alert.messageText = @"跳转到百分比";
+    alert.informativeText = @"输入 0-100 的数字";
+    [alert addButtonWithTitle:@"跳转"];
+    [alert addButtonWithTitle:@"取消"];
+    NSTextField* input = [[NSTextField alloc] initWithFrame:NSMakeRect(0, 0, 200, 24)];
+    input.placeholderString = @"例如 50";
+    alert.accessoryView = input;
+    [alert.window setInitialFirstResponder:input];
+    if ([alert runModal] != NSAlertFirstButtonReturn) return;
+    double pct = input.stringValue.doubleValue;
+    [self.canvas jumpToPercent:pct];
+}
+
+// ---------- 自动翻页开关 ----------
+- (void)toggleAutoPage:(id)sender {
+    [self.canvas toggleAutoPaging];
+}
+
+// ---------- 字号 ----------
+- (void)increaseFont:(id)sender { [self.canvas increaseFontSize]; }
+- (void)decreaseFont:(id)sender { [self.canvas decreaseFontSize]; }
 
 - (void)openRecent:(NSMenuItem*)sender {
     NSString* path = sender.representedObject;

@@ -44,6 +44,13 @@ public:
 @property (assign) int       pendingRestoreIndex;
 @property (strong) NSColor*  textColorCache;
 @property (strong) NSColor*  bgColorCache;
+// 自动翻页
+@property (strong) NSTimer*  autoPagingTimer;
+@property (assign) double    autoPagingInterval;
+// 全文搜索
+@property (copy)   NSString*           lastSearchKeyword;
+@property (strong) NSMutableArray<NSNumber*>* searchHits;
+@property (assign) NSInteger           searchHitIndex;
 @end
 
 @implementation ReaderCanvasView {
@@ -65,11 +72,42 @@ public:
         _listener->view = self;
         self.textColorCache = [NSColor labelColor];
         self.bgColorCache   = [NSColor windowBackgroundColor];
+        self.autoPagingInterval = 5.0;
         [self loadDisplayProfileFromUserDefaults];
         self.wantsLayer = YES;
         self.layer.backgroundColor = [self.bgColorCache CGColor];
+        // 拖拽打开文件
+        [self registerForDraggedTypes:@[NSPasteboardTypeFileURL]];
     }
     return self;
+}
+
+// ---------- 拖拽接收 ----------
+
+- (NSDragOperation)draggingEntered:(id<NSDraggingInfo>)sender {
+    NSPasteboard* pb = sender.draggingPasteboard;
+    NSArray* urls = [pb readObjectsForClasses:@[NSURL.class] options:nil];
+    for (NSURL* u in urls) {
+        NSString* ext = u.pathExtension.lowercaseString;
+        if ([@[@"txt", @"epub", @"mobi", @"azw", @"azw3"] containsObject:ext]) {
+            return NSDragOperationCopy;
+        }
+    }
+    return NSDragOperationNone;
+}
+
+- (BOOL)performDragOperation:(id<NSDraggingInfo>)sender {
+    NSPasteboard* pb = sender.draggingPasteboard;
+    NSArray* urls = [pb readObjectsForClasses:@[NSURL.class] options:nil];
+    for (NSURL* u in urls) {
+        NSString* ext = u.pathExtension.lowercaseString;
+        if ([@[@"txt", @"epub", @"mobi", @"azw", @"azw3"] containsObject:ext]) {
+            [self openFileAtPath:u.path];
+            self.window.title = u.lastPathComponent;
+            return YES;
+        }
+    }
+    return NO;
 }
 
 - (BOOL)hasBook { return _book != nullptr; }
@@ -79,6 +117,130 @@ public:
 - (void)lineDown      { if (_book) _book->LineDown(); }
 - (void)jumpPrevChapter { if (_book) _book->JumpPrevChapter(); }
 - (void)jumpNextChapter { if (_book) _book->JumpNextChapter(); }
+
+- (void)increaseFontSize { [self setFontSize:[self fontSize] + 2]; }
+- (void)decreaseFontSize { [self setFontSize:[self fontSize] - 2]; }
+
+- (void)jumpToPercent:(double)pct {
+    if (!_book || _book->GetTextLength() <= 0) return;
+    if (pct < 0) pct = 0;
+    if (pct > 100) pct = 100;
+    int total = _book->GetTextLength();
+    _index = (int)(total * pct / 100.0);
+    if (_index >= total) _index = total - 1;
+    [self relayoutAndRedraw];
+}
+
+// ---------- 自动翻页 ----------
+
+- (BOOL)isAutoPaging { return self.autoPagingTimer != nil; }
+
+- (void)setAutoPagingInterval:(double)seconds {
+    self.autoPagingInterval = seconds;
+    if ([self isAutoPaging]) {  // restart with new interval
+        [self toggleAutoPaging];
+        [self toggleAutoPaging];
+    }
+}
+
+- (void)toggleAutoPaging {
+    if (self.autoPagingTimer) {
+        [self.autoPagingTimer invalidate];
+        self.autoPagingTimer = nil;
+        return;
+    }
+    if (!_book) return;
+    double interval = self.autoPagingInterval > 0 ? self.autoPagingInterval : 5.0;
+    __weak typeof(self) ws = self;
+    self.autoPagingTimer = [NSTimer scheduledTimerWithTimeInterval:interval
+                                                            repeats:YES
+                                                              block:^(NSTimer* t) {
+        __strong typeof(ws) ss = ws;
+        if (!ss || !ss.hasBook) { [t invalidate]; return; }
+        if ([ss isAtLastPage]) {
+            [t invalidate];
+            ss.autoPagingTimer = nil;
+            return;
+        }
+        [ss pageDown];
+    }];
+}
+
+- (BOOL)isAtLastPage { return _book && _book->IsLastPage(); }
+
+// ---------- 全文搜索 ----------
+
+- (NSUInteger)searchText:(NSString*)keyword {
+    self.lastSearchKeyword = keyword;
+    self.searchHits = [NSMutableArray array];
+    self.searchHitIndex = -1;
+    if (!_book || keyword.length == 0) return 0;
+
+    int textLen = _book->GetTextLength();
+    if (textLen <= 0) return 0;
+
+    // m_Text 是 protected，靠 GetText 拿；ReaderCore 已暴露
+    wchar_t* text = _book->GetText();
+    if (!text) return 0;
+
+    // 转关键词为 wchar_t（macOS wchar_t = 4 字节 / UTF-32）
+    NSData* d = [keyword dataUsingEncoding:NSUTF32LittleEndianStringEncoding];
+    int klen = (int)(d.length / sizeof(wchar_t));
+    if (klen <= 0) return 0;
+    const wchar_t* kbuf = (const wchar_t*)d.bytes;
+
+    // 顺序扫描所有出现位置（小说一般不长，性能足够）
+    for (int i = 0; i + klen <= textLen; ++i) {
+        BOOL hit = YES;
+        for (int j = 0; j < klen; ++j) {
+            if (text[i + j] != kbuf[j]) { hit = NO; break; }
+        }
+        if (hit) {
+            [self.searchHits addObject:@(i)];
+            i += klen - 1;
+        }
+    }
+    return self.searchHits.count;
+}
+
+- (void)jumpToNextMatch {
+    if (self.searchHits.count == 0) return;
+    self.searchHitIndex = (self.searchHitIndex + 1) % (NSInteger)self.searchHits.count;
+    int idx = [self.searchHits[self.searchHitIndex] intValue];
+    _index = idx;
+    [self relayoutAndRedraw];
+}
+
+- (void)jumpToPrevMatch {
+    if (self.searchHits.count == 0) return;
+    self.searchHitIndex = (self.searchHitIndex - 1 + (NSInteger)self.searchHits.count)
+                        % (NSInteger)self.searchHits.count;
+    int idx = [self.searchHits[self.searchHitIndex] intValue];
+    _index = idx;
+    [self relayoutAndRedraw];
+}
+
+- (NSString*)currentSearchInfo {
+    if (self.searchHits.count == 0)
+        return self.lastSearchKeyword.length > 0 ? @"无匹配" : @"";
+    return [NSString stringWithFormat:@"%ld/%lu",
+            (long)(self.searchHitIndex < 0 ? 0 : self.searchHitIndex + 1),
+            (unsigned long)self.searchHits.count];
+}
+
+// ---------- 当前章节标题 ----------
+
+- (NSString*)currentChapterTitle {
+    if (!_book) return @"";
+    int ci = _book->GetCurChapterIndex();
+    auto* chapters = _book->GetChapters();
+    if (!chapters || ci < 0 || ci >= (int)chapters->size()) return @"";
+    const std::wstring& t = (*chapters)[ci].title;
+    NSData* d = [NSData dataWithBytes:t.data() length:t.size() * sizeof(wchar_t)];
+    NSString* s = [[NSString alloc] initWithData:d
+                                         encoding:NSUTF32LittleEndianStringEncoding];
+    return s ?: @"";
+}
 
 - (BOOL)isFlipped { return YES; }       // top-left origin matches the engine
 - (BOOL)acceptsFirstResponder { return YES; }
@@ -375,9 +537,6 @@ static NSColor* unarchiveColor(NSData* d) {
 - (void)keyDown:(NSEvent*)event {
     NSString* chars = event.charactersIgnoringModifiers;
     unichar key = chars.length ? [chars characterAtIndex:0] : 0;
-    NSLog(@"[Canvas] keyDown key=0x%04X book=%d firstResp=%d",
-          key, _book != nullptr,
-          self.window.firstResponder == self);
     if (!_book) { [super keyDown:event]; return; }
     BOOL ctrl  = (event.modifierFlags & NSEventModifierFlagControl) != 0;
     switch (key) {
@@ -389,6 +548,9 @@ static NSColor* unarchiveColor(NSData* d) {
             break;
         case NSUpArrowFunctionKey:   _book->LineUp(); break;
         case NSDownArrowFunctionKey: _book->LineDown(); break;
+        case ' ':  // 空格：自动翻页切换
+            [self toggleAutoPaging];
+            break;
         default: [super keyDown:event]; return;
     }
 }

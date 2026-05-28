@@ -141,6 +141,11 @@ static NSString* prefsKey(NSString* actionId) {
     [self addActionId:@"prevChapter"   displayName:@"上一章"          keyChar:@"[" modifiers:Cmd];
     [self addActionId:@"nextChapter"   displayName:@"下一章"          keyChar:@"]" modifiers:Cmd];
     [self addActionId:@"addBookmark"   displayName:@"添加书签"        keyChar:@"m" modifiers:Cmd];
+    [self addActionId:@"findInBook"    displayName:@"全文搜索"        keyChar:@"f" modifiers:Cmd];
+    [self addActionId:@"jumpPercent"   displayName:@"百分比跳转"      keyChar:@"g" modifiers:Cmd];
+    [self addActionId:@"increaseFont"  displayName:@"放大字号"        keyChar:@"=" modifiers:Cmd];
+    [self addActionId:@"decreaseFont"  displayName:@"缩小字号"        keyChar:@"-" modifiers:Cmd];
+    [self addActionId:@"autoPage"      displayName:@"自动翻页（开关）" keyChar:@"p" modifiers:Cmd];
     [self addActionId:@"globalToggle"  displayName:@"全局显隐 (全局热键)" keyChar:@"h" modifiers:Ctrl | Opt];
 }
 
