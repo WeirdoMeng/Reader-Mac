@@ -27,7 +27,8 @@
 @implementation DisplaySettingsView
 
 - (instancetype)initWithCanvas:(ReaderCanvasView*)canvas {
-    self = [super initWithFrame:NSMakeRect(0, 0, 520, 540)];
+    // 高度按内容算（NSScrollView 会按这个尺寸决定是否滚动）
+    self = [super initWithFrame:NSMakeRect(0, 0, 520, 660)];
     if (self) {
         _canvas = canvas;
         [self buildUI];
@@ -175,7 +176,7 @@
                           slider:&sA chip:&cA outLabel:&lA];
     self.autoPageSlider = sA; self.autoPageValueLabel = cA;
 
-    NSTextField* autoTip = [NSTextField labelWithString:@"快捷键：空格 或 Cmd+P 开关自动翻页"];
+    NSTextField* autoTip = [NSTextField labelWithString:@"开关快捷键可在「快捷键」标签页自定义"];
     autoTip.font = [NSFont systemFontOfSize:11];
     autoTip.textColor = [NSColor tertiaryLabelColor];
 
@@ -224,6 +225,7 @@
         [main.topAnchor      constraintEqualToAnchor:self.topAnchor      constant:20],
         [main.leadingAnchor  constraintEqualToAnchor:self.leadingAnchor  constant:24],
         [main.trailingAnchor constraintEqualToAnchor:self.trailingAnchor constant:-24],
+        [main.bottomAnchor   constraintLessThanOrEqualToAnchor:self.bottomAnchor constant:-50],
     ]];
     for (NSView* row in @[r1, r0, r2, r3, rA]) {
         [row.leadingAnchor  constraintEqualToAnchor:main.leadingAnchor].active = YES;
@@ -411,13 +413,15 @@
 @implementation PreferencesWindowController
 
 - (instancetype)initWithCanvas:(ReaderCanvasView*)canvas {
-    NSRect frame = NSMakeRect(0, 0, 500, 380);
+    NSRect frame = NSMakeRect(0, 0, 540, 520);
     NSWindow* w = [[NSWindow alloc] initWithContentRect:frame
                                               styleMask:(NSWindowStyleMaskTitled
-                                                         | NSWindowStyleMaskClosable)
+                                                         | NSWindowStyleMaskClosable
+                                                         | NSWindowStyleMaskResizable)
                                                 backing:NSBackingStoreBuffered
                                                   defer:NO];
     w.title = @"偏好设置";
+    [w setContentMinSize:NSMakeSize(480, 360)];
     self = [super initWithWindow:w];
     if (self) {
         _canvas = canvas;
@@ -433,7 +437,14 @@
 
     NSTabViewItem* tab1 = [[NSTabViewItem alloc] initWithIdentifier:@"display"];
     tab1.label = @"显示设置";
-    tab1.view = [[DisplaySettingsView alloc] initWithCanvas:self.canvas];
+    DisplaySettingsView* disp = [[DisplaySettingsView alloc] initWithCanvas:self.canvas];
+    NSScrollView* sv = [[NSScrollView alloc] init];
+    sv.hasVerticalScroller = YES;
+    sv.drawsBackground = NO;
+    sv.borderType = NSNoBorder;
+    sv.documentView = disp;
+    sv.autohidesScrollers = YES;
+    tab1.view = sv;
     [tabs addTabViewItem:tab1];
 
     NSTabViewItem* tab2 = [[NSTabViewItem alloc] initWithIdentifier:@"shortcuts"];

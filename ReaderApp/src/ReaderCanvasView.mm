@@ -608,9 +608,6 @@ static NSColor* unarchiveColor(NSData* d) {
             break;
         case NSUpArrowFunctionKey:   _book->LineUp(); break;
         case NSDownArrowFunctionKey: _book->LineDown(); break;
-        case ' ':  // 空格：自动翻页切换
-            [self toggleAutoPaging];
-            break;
         default: [super keyDown:event]; return;
     }
 }
