@@ -18,7 +18,7 @@ void fill_default_header(header_t* header) {
     // lfHeight is in *device pixels*, negative means "this is point-relative".
     // The macOS UI layer translates this into NSFont size; for CLI/unit tests
     // a positive logical height is enough.
-    header->font.lfHeight = -14;
+    header->font.lfHeight = -16;
     header->font.lfWeight = FW_NORMAL;
     // Pick a face that exists on both Win and Mac; UI may override.
     const wchar_t kFace[] = L"PingFang SC";
@@ -56,7 +56,7 @@ void fill_default_header(header_t* header) {
     // ---- typography ----
     header->char_gap        = 0;
     header->line_gap        = 5;
-    header->paragraph_gap   = 15;
+    header->paragraph_gap   = 7;
     header->left_line_count = 0;
     header->internal_border.left   = 12;
     header->internal_border.top    = 12;
