@@ -361,9 +361,12 @@ static NSColor* unarchiveColor(NSData* d) {
 
 // ---------- keyboard navigation ----------
 - (void)keyDown:(NSEvent*)event {
-    if (!_book) { [super keyDown:event]; return; }
     NSString* chars = event.charactersIgnoringModifiers;
     unichar key = chars.length ? [chars characterAtIndex:0] : 0;
+    NSLog(@"[Canvas] keyDown key=0x%04X book=%d firstResp=%d",
+          key, _book != nullptr,
+          self.window.firstResponder == self);
+    if (!_book) { [super keyDown:event]; return; }
     BOOL ctrl  = (event.modifierFlags & NSEventModifierFlagControl) != 0;
     switch (key) {
         case NSLeftArrowFunctionKey:

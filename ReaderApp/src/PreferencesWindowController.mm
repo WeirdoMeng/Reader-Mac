@@ -230,34 +230,18 @@
     sv.documentView = self.table;
     [self addSubview:sv];
 
-    // 左下：恢复默认
+    // 恢复默认按钮 + 提示
     NSButton* resetAll = [NSButton buttonWithTitle:@"恢复全部默认"
                                               target:self
                                               action:@selector(resetAll:)];
     resetAll.frame = NSMakeRect(10, 12, 130, 28);
     [self addSubview:resetAll];
 
-    // 右下：保存（主按钮）+ 撤销
-    NSButton* save = [NSButton buttonWithTitle:@"保存"
-                                          target:self
-                                          action:@selector(commitChanges:)];
-    save.bezelStyle = NSBezelStyleRounded;
-    save.keyEquivalent = @"\r";   // 回车确认
-    save.frame = NSMakeRect(370, 12, 80, 28);
-    [self addSubview:save];
-
-    NSButton* cancel = [NSButton buttonWithTitle:@"撤销改动"
-                                            target:self
-                                            action:@selector(discardChanges:)];
-    cancel.frame = NSMakeRect(280, 12, 90, 28);
-    [self addSubview:cancel];
-}
-
-- (void)commitChanges:(id)sender {
-    [KeyBindings.shared commitPending];
-}
-- (void)discardChanges:(id)sender {
-    [KeyBindings.shared discardPending];
+    NSTextField* tip = [NSTextField labelWithString:@"提示：点击按钮录入新组合，按下即生效。Esc 取消。"];
+    tip.font = [NSFont systemFontOfSize:11];
+    tip.textColor = [NSColor secondaryLabelColor];
+    tip.frame = NSMakeRect(150, 16, 310, 16);
+    [self addSubview:tip];
 }
 
 - (void)resetAll:(id)sender {
@@ -288,13 +272,12 @@
             __weak typeof(btn) wbtn = btn;
             NSString* aid = a.actionId;
             btn.onRecorded = ^(KBShortcut* sc) {
-                // 只暂存，不立即生效；等用户点保存按钮一次性 commit
-                [KeyBindings.shared setPendingShortcut:sc forActionId:aid];
+                // 录入后立即生效
+                [KeyBindings.shared setShortcut:sc forActionId:aid];
                 (void)wbtn;
             };
         }
-        // 显示 pending（如果有）否则显示已保存的
-        [btn setShortcut:[KeyBindings.shared effectiveShortcutForActionId:a.actionId]];
+        [btn setShortcut:a.shortcut];
         return btn;
     }
 }

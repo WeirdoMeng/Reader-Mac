@@ -124,11 +124,14 @@ static void applyShortcut(NSMenuItem* mi, NSString* actionId) {
 }
 
 - (void)mainWindowBecameKey:(NSNotification*)note {
+    NSLog(@"[AppDelegate] 主窗口 becomeKey, 当前 firstResp=%@",
+          self.window.firstResponder);
     // 确保阅读 canvas 永远是 firstResponder —— keyDown 路由可靠
     if (self.canvas && self.window.firstResponder != self.canvas) {
-        [self.window makeFirstResponder:self.canvas];
+        BOOL ok = [self.window makeFirstResponder:self.canvas];
+        NSLog(@"[AppDelegate] makeFirstResponder:canvas → %d, 现在 firstResp=%@",
+              ok, self.window.firstResponder);
     }
-    // 强制 canvas 重新画一次（处理可能的渲染状态污染）
     [self.canvas relayoutAndRedraw];
 }
 
