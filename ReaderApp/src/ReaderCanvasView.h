@@ -25,6 +25,8 @@
 // Display setting accessors (apply triggers relayout).
 - (int)fontSize;
 - (void)setFontSize:(int)pt;
+- (int)charGap;
+- (void)setCharGap:(int)px;
 - (int)lineGap;
 - (void)setLineGap:(int)px;
 - (int)paragraphGap;

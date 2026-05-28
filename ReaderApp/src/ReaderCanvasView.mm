@@ -225,6 +225,16 @@ static NSString* bookmarkKeyFor(NSString* file) {
     [self saveDisplayProfileToUserDefaults];
 }
 
+- (int)charGap { return _header.char_gap; }
+- (void)setCharGap:(int)px {
+    if (px < 0)  px = 0;
+    if (px > 10) px = 10;
+    _header.char_gap = px;
+    if (_book) _book->InvalidateFontCache();
+    [self relayoutAndRedraw];
+    [self saveDisplayProfileToUserDefaults];
+}
+
 - (int)lineGap { return _header.line_gap; }
 - (void)setLineGap:(int)px {
     if (px < 0) px = 0;
@@ -282,6 +292,7 @@ static NSColor* unarchiveColor(NSData* d) {
     NSUserDefaults* d = NSUserDefaults.standardUserDefaults;
     if ([d objectForKey:@"fontSize"])    _header.font.lfHeight = -(int)[d integerForKey:@"fontSize"];
     if ([d objectForKey:@"fontSize"])    _header.font_title.lfHeight = _header.font.lfHeight;
+    if ([d objectForKey:@"charGap"])     _header.char_gap = (int)[d integerForKey:@"charGap"];
     if ([d objectForKey:@"lineGap"])     _header.line_gap = (int)[d integerForKey:@"lineGap"];
     if ([d objectForKey:@"paragraphGap"])_header.paragraph_gap = (int)[d integerForKey:@"paragraphGap"];
     if ([d objectForKey:@"lineIndent"])  _header.line_indent = (int)[d integerForKey:@"lineIndent"];
@@ -294,6 +305,7 @@ static NSColor* unarchiveColor(NSData* d) {
 - (void)saveDisplayProfileToUserDefaults {
     NSUserDefaults* d = NSUserDefaults.standardUserDefaults;
     [d setInteger:[self fontSize]      forKey:@"fontSize"];
+    [d setInteger:_header.char_gap     forKey:@"charGap"];
     [d setInteger:_header.line_gap     forKey:@"lineGap"];
     [d setInteger:_header.paragraph_gap forKey:@"paragraphGap"];
     [d setInteger:_header.line_indent  forKey:@"lineIndent"];

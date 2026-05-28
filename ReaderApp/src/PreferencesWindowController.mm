@@ -11,6 +11,8 @@
 @property (weak)   ReaderCanvasView* canvas;
 @property (strong) NSSlider*    fontSlider;
 @property (strong) NSTextField* fontValueLabel;
+@property (strong) NSSlider*    charGapSlider;
+@property (strong) NSTextField* charGapValueLabel;
 @property (strong) NSSlider*    lineGapSlider;
 @property (strong) NSTextField* lineGapValueLabel;
 @property (strong) NSSlider*    paraGapSlider;
@@ -135,6 +137,12 @@
                           slider:&s1 chip:&c1 outLabel:&l1];
     self.fontSlider = s1; self.fontValueLabel = c1;
 
+    NSSlider* s0; NSTextField* c0; NSTextField* l0;
+    NSView* r0 = [self sliderRow:@"字  距" min:0 max:10 value:[self.canvas charGap]
+                          suffix:@"px" action:@selector(charGapChanged:)
+                          slider:&s0 chip:&c0 outLabel:&l0];
+    self.charGapSlider = s0; self.charGapValueLabel = c0;
+
     NSSlider* s2; NSTextField* c2; NSTextField* l2;
     NSView* r2 = [self sliderRow:@"行  距" min:0 max:30 value:[self.canvas lineGap]
                           suffix:@"px" action:@selector(lineGapChanged:)
@@ -178,7 +186,7 @@
 
     // ---- 主 stack 垂直排列 ----
     NSStackView* main = [NSStackView stackViewWithViews:@[
-        secTypo, r1, r2, r3, r4,
+        secTypo, r1, r0, r2, r3, r4,
         [self separator],
         secColor, r5, r6, resetColors,
     ]];
@@ -188,7 +196,7 @@
     main.translatesAutoresizingMaskIntoConstraints = NO;
 
     // 给每一行设宽度约束（一致宽）
-    for (NSView* row in @[r1, r2, r3, r4, r5, r6]) {
+    for (NSView* row in @[r1, r0, r2, r3, r4, r5, r6]) {
         row.translatesAutoresizingMaskIntoConstraints = NO;
     }
     [self addSubview:main];
@@ -198,7 +206,7 @@
         [main.leadingAnchor  constraintEqualToAnchor:self.leadingAnchor  constant:24],
         [main.trailingAnchor constraintEqualToAnchor:self.trailingAnchor constant:-24],
     ]];
-    for (NSView* row in @[r1, r2, r3]) {
+    for (NSView* row in @[r1, r0, r2, r3]) {
         [row.leadingAnchor  constraintEqualToAnchor:main.leadingAnchor].active = YES;
         [row.trailingAnchor constraintEqualToAnchor:main.trailingAnchor].active = YES;
     }
@@ -219,6 +227,11 @@
     int v = (int)round(s.doubleValue);
     [self.canvas setFontSize:v];
     self.fontValueLabel.stringValue = [NSString stringWithFormat:@"%d pt", v];
+}
+- (void)charGapChanged:(NSSlider*)s {
+    int v = (int)round(s.doubleValue);
+    [self.canvas setCharGap:v];
+    self.charGapValueLabel.stringValue = [NSString stringWithFormat:@"%d px", v];
 }
 - (void)lineGapChanged:(NSSlider*)s {
     int v = (int)round(s.doubleValue);
