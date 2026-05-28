@@ -47,6 +47,10 @@ public:
 // 自动翻页
 @property (strong) NSTimer*  autoPagingTimer;
 @property (assign) double    autoPagingInterval;
+// Toast
+@property (strong) NSTextField* toastLabel;
+@property (strong) NSView*      toastBubble;
+@property (strong) NSTimer*     toastTimer;
 // 全文搜索
 @property (copy)   NSString*           lastSearchKeyword;
 @property (strong) NSMutableArray<NSNumber*>* searchHits;
@@ -72,7 +76,8 @@ public:
         _listener->view = self;
         self.textColorCache = [NSColor labelColor];
         self.bgColorCache   = [NSColor windowBackgroundColor];
-        _autoPagingInterval = 5.0;
+        NSInteger ap = [NSUserDefaults.standardUserDefaults integerForKey:@"autoPagingInterval"];
+        _autoPagingInterval = ap > 0 ? (double)ap : 5.0;
         [self loadDisplayProfileFromUserDefaults];
         self.wantsLayer = YES;
         self.layer.backgroundColor = [self.bgColorCache CGColor];
@@ -147,10 +152,12 @@ public:
     if (self.autoPagingTimer) {
         [self.autoPagingTimer invalidate];
         self.autoPagingTimer = nil;
+        [self showToast:@"已停止自动翻页"];
         return;
     }
     if (!_book) return;
     double interval = self.autoPagingInterval > 0 ? self.autoPagingInterval : 5.0;
+    [self showToast:[NSString stringWithFormat:@"自动翻页：每 %.0f 秒翻一页", interval]];
     __weak typeof(self) ws = self;
     self.autoPagingTimer = [NSTimer scheduledTimerWithTimeInterval:interval
                                                             repeats:YES
@@ -167,6 +174,59 @@ public:
 }
 
 - (BOOL)isAtLastPage { return _book && _book->IsLastPage(); }
+
+// ---------- Toast 提示 ----------
+
+- (void)showToast:(NSString*)text {
+    if (!self.toastBubble) {
+        self.toastBubble = [[NSView alloc] init];
+        self.toastBubble.wantsLayer = YES;
+        self.toastBubble.layer.backgroundColor =
+            [[NSColor colorWithWhite:0.0 alpha:0.72] CGColor];
+        self.toastBubble.layer.cornerRadius = 8;
+        self.toastBubble.translatesAutoresizingMaskIntoConstraints = NO;
+
+        self.toastLabel = [NSTextField labelWithString:@""];
+        self.toastLabel.font = [NSFont systemFontOfSize:13 weight:NSFontWeightMedium];
+        self.toastLabel.textColor = [NSColor whiteColor];
+        self.toastLabel.backgroundColor = [NSColor clearColor];
+        self.toastLabel.drawsBackground = NO;
+        self.toastLabel.bezeled = NO;
+        self.toastLabel.editable = NO;
+        self.toastLabel.translatesAutoresizingMaskIntoConstraints = NO;
+        [self.toastBubble addSubview:self.toastLabel];
+
+        [NSLayoutConstraint activateConstraints:@[
+            [self.toastLabel.leadingAnchor  constraintEqualToAnchor:self.toastBubble.leadingAnchor  constant:14],
+            [self.toastLabel.trailingAnchor constraintEqualToAnchor:self.toastBubble.trailingAnchor constant:-14],
+            [self.toastLabel.topAnchor      constraintEqualToAnchor:self.toastBubble.topAnchor      constant:8],
+            [self.toastLabel.bottomAnchor   constraintEqualToAnchor:self.toastBubble.bottomAnchor   constant:-8],
+        ]];
+    }
+    if (self.toastBubble.superview != self) {
+        [self addSubview:self.toastBubble];
+        [NSLayoutConstraint activateConstraints:@[
+            [self.toastBubble.centerXAnchor constraintEqualToAnchor:self.centerXAnchor],
+            [self.toastBubble.topAnchor     constraintEqualToAnchor:self.topAnchor constant:24],
+        ]];
+    }
+    self.toastLabel.stringValue = text;
+    self.toastBubble.alphaValue = 1.0;
+    self.toastBubble.hidden = NO;
+
+    [self.toastTimer invalidate];
+    __weak typeof(self) ws = self;
+    self.toastTimer = [NSTimer scheduledTimerWithTimeInterval:1.5
+                                                       repeats:NO
+                                                         block:^(NSTimer* _Nonnull) {
+        [NSAnimationContext runAnimationGroup:^(NSAnimationContext* ctx) {
+            ctx.duration = 0.25;
+            ws.toastBubble.animator.alphaValue = 0.0;
+        } completionHandler:^{
+            ws.toastBubble.hidden = YES;
+        }];
+    }];
+}
 
 // ---------- 全文搜索 ----------
 

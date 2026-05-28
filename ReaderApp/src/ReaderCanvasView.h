@@ -75,7 +75,11 @@
 // 自动翻页
 - (BOOL)isAutoPaging;
 - (void)toggleAutoPaging;
+- (double)autoPagingInterval;
 - (void)setAutoPagingInterval:(double)seconds;
+
+// 在 canvas 顶部显示一个一闪即逝的提示
+- (void)showToast:(NSString*)text;
 
 // 全文搜索：返回匹配总数；调 next/prev 跳转
 - (NSUInteger)searchText:(NSString*)keyword;

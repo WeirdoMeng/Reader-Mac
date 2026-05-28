@@ -17,6 +17,8 @@
 @property (strong) NSTextField* lineGapValueLabel;
 @property (strong) NSSlider*    paraGapSlider;
 @property (strong) NSTextField* paraGapValueLabel;
+@property (strong) NSSlider*    autoPageSlider;
+@property (strong) NSTextField* autoPageValueLabel;
 @property (strong) NSButton*    indentSwitch;
 @property (strong) NSColorWell* textColorWell;
 @property (strong) NSColorWell* bgColorWell;
@@ -25,7 +27,7 @@
 @implementation DisplaySettingsView
 
 - (instancetype)initWithCanvas:(ReaderCanvasView*)canvas {
-    self = [super initWithFrame:NSMakeRect(0, 0, 500, 380)];
+    self = [super initWithFrame:NSMakeRect(0, 0, 520, 540)];
     if (self) {
         _canvas = canvas;
         [self buildUI];
@@ -162,6 +164,21 @@
         NSControlStateValueOn : NSControlStateValueOff;
     NSView* r4 = [self checkboxRow:@"首行缩进" checkbox:self.indentSwitch];
 
+    // ---- 自动翻页 分组 ----
+    NSTextField* secAuto = [self sectionTitle:@"自动翻页"];
+
+    NSSlider* sA; NSTextField* cA; NSTextField* lA;
+    NSView* rA = [self sliderRow:@"翻页间隔"
+                              min:1 max:30 value:[self.canvas autoPagingInterval]
+                          suffix:@"秒"
+                          action:@selector(autoPageIntervalChanged:)
+                          slider:&sA chip:&cA outLabel:&lA];
+    self.autoPageSlider = sA; self.autoPageValueLabel = cA;
+
+    NSTextField* autoTip = [NSTextField labelWithString:@"快捷键：空格 或 Cmd+P 开关自动翻页"];
+    autoTip.font = [NSFont systemFontOfSize:11];
+    autoTip.textColor = [NSColor tertiaryLabelColor];
+
     // ---- 颜色分组 ----
     NSTextField* secColor = [self sectionTitle:@"颜色"];
 
@@ -188,6 +205,8 @@
     NSStackView* main = [NSStackView stackViewWithViews:@[
         secTypo, r1, r0, r2, r3, r4,
         [self separator],
+        secAuto, rA, autoTip,
+        [self separator],
         secColor, r5, r6, resetColors,
     ]];
     main.orientation = NSUserInterfaceLayoutOrientationVertical;
@@ -196,7 +215,7 @@
     main.translatesAutoresizingMaskIntoConstraints = NO;
 
     // 给每一行设宽度约束（一致宽）
-    for (NSView* row in @[r1, r0, r2, r3, r4, r5, r6]) {
+    for (NSView* row in @[r1, r0, r2, r3, r4, rA, r5, r6]) {
         row.translatesAutoresizingMaskIntoConstraints = NO;
     }
     [self addSubview:main];
@@ -206,7 +225,7 @@
         [main.leadingAnchor  constraintEqualToAnchor:self.leadingAnchor  constant:24],
         [main.trailingAnchor constraintEqualToAnchor:self.trailingAnchor constant:-24],
     ]];
-    for (NSView* row in @[r1, r0, r2, r3]) {
+    for (NSView* row in @[r1, r0, r2, r3, rA]) {
         [row.leadingAnchor  constraintEqualToAnchor:main.leadingAnchor].active = YES;
         [row.trailingAnchor constraintEqualToAnchor:main.trailingAnchor].active = YES;
     }
@@ -242,6 +261,12 @@
     int v = (int)round(s.doubleValue);
     [self.canvas setParagraphGap:v];
     self.paraGapValueLabel.stringValue = [NSString stringWithFormat:@"%d px", v];
+}
+- (void)autoPageIntervalChanged:(NSSlider*)s {
+    int v = (int)round(s.doubleValue);
+    [self.canvas setAutoPagingInterval:(double)v];
+    self.autoPageValueLabel.stringValue = [NSString stringWithFormat:@"%d 秒", v];
+    [NSUserDefaults.standardUserDefaults setInteger:v forKey:@"autoPagingInterval"];
 }
 - (void)indentChanged:(NSButton*)b {
     [self.canvas setFirstLineIndent:b.state == NSControlStateValueOn];
