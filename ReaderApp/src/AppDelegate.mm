@@ -263,13 +263,6 @@ static void applyShortcut(NSMenuItem* mi, NSString* actionId) {
     applyShortcut(borderless, @"borderless");
     self.boundItems[@"borderless"] = borderless;
     [viewMenu addItem:borderless];
-    NSMenuItem* fullscreen = [[NSMenuItem alloc] initWithTitle:@"进入/退出全屏"
-                                                         action:@selector(toggleFullScreen:)
-                                                  keyEquivalent:@""];
-    fullscreen.target = self;
-    applyShortcut(fullscreen, @"fullScreen");
-    self.boundItems[@"fullScreen"] = fullscreen;
-    [viewMenu addItem:fullscreen];
     NSMenuItem* top = [[NSMenuItem alloc] initWithTitle:@"窗口置顶"
                                                   action:@selector(toggleTopMost:)
                                            keyEquivalent:@""];

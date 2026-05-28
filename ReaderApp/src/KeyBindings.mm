@@ -137,7 +137,6 @@ static NSString* prefsKey(NSString* actionId) {
     [self addActionId:@"closeFile"     displayName:@"关闭文件"        keyChar:@"w" modifiers:Cmd];
     [self addActionId:@"preferences"   displayName:@"打开偏好设置"    keyChar:@"," modifiers:Cmd];
     [self addActionId:@"borderless"    displayName:@"切换无边框"      keyChar:@"b" modifiers:Cmd | Shift];
-    [self addActionId:@"fullScreen"    displayName:@"切换全屏"        keyChar:@"f" modifiers:Cmd | Ctrl];
     [self addActionId:@"topMost"       displayName:@"切换窗口置顶"    keyChar:@"t" modifiers:Cmd];
     [self addActionId:@"prevChapter"   displayName:@"上一章"          keyChar:@"[" modifiers:Cmd];
     [self addActionId:@"nextChapter"   displayName:@"下一章"          keyChar:@"]" modifiers:Cmd];
