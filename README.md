@@ -1,24 +1,59 @@
-# 摸鱼书摊
+<p align="center">
+  <img src="docs/logo.png" width="160" alt="摸鱼书摊 Logo" />
+</p>
 
-> 一个克制、好用的原生 macOS 小说阅读器 — 摸鱼时也能优雅看书。
+<h1 align="center">摸鱼书摊</h1>
 
-![摸鱼书摊](ReaderApp/Resources/AppIcon.iconset/icon_256x256.png)
+<p align="center">
+  一个克制、好用的原生 macOS 小说阅读器 — 摸鱼时也能优雅看书。
+</p>
 
-- 原生 AppKit + Core Text，universal binary（arm64 + x86_64），完全无第三方 UI 框架依赖
-- 单一二进制 < 5 MB，冷启动 < 100 ms
-- 完全离线可用；联网仅在你主动「搜书」时
-- 全自定义快捷键 / 字号 / 颜色 / 行距，所见即所设，无重启
+<p align="center">
+  <a href="#安装">安装</a> ·
+  <a href="#特性总览">特性</a> ·
+  <a href="#截图导览">截图</a> ·
+  <a href="#快捷键">快捷键</a> ·
+  <a href="#在线书源-bsjson">书源扩展</a>
+</p>
 
-## 截图
+---
 
-### 在线搜书 + 整本下载
-![在线小说](docs/screenshots/02_online.png)
+- 🍎 **原生 AppKit + Core Text**，universal binary（arm64 + x86_64），**零第三方 UI 框架**
+- ⚡️ 单一二进制 < 5 MB，冷启动 < 100 ms
+- 📚 一站式：**搜书 → 整本下载 → 离线阅读**，全程不离开应用
+- 🎛 字号 / 颜色 / 行距 / 透明度 / 快捷键全自定义，**改完即生效，无需重启**
+- 🐟 摸鱼场景友好：无边框 / 整窗透明 / 全局热键一键显隐
 
-> 双击搜索结果即整本并发下载到本地，之后所有阅读都是纯本地体验。
+## 截图导览
 
-<!-- 阅读界面、设置面板、跳章菜单等截图欢迎补充到 docs/screenshots/ 后再 PR -->
+### ① 阅读界面 — Core Text 中文排版，无任何 UI 边距浪费
 
-## 特性
+![阅读界面](docs/screenshots/01_reading.png)
+
+可见信息：
+- **章节标题**自动识别，作为本地 TOC 的一项
+- **首行缩进**、**段距**、**行距**、**字间距** 全独立可调（设置面板）
+- 整窗背景与字色用户可换；图中是默认夜读色（暗背景 + 米色字）
+- 标题栏只留必要按钮，无边框模式下连标题栏都能藏
+
+---
+
+### ② 在线搜书 + 整本并发下载
+
+![在线搜书](docs/screenshots/02_online.png)
+
+可见信息：
+- 搜索框一栏简洁 UI，**没有"书源"概念**（内部维护，用户透明）
+- 搜索结果列：**书名 + 作者**
+- 双击任意结果触发整本下载，下方进度条「**正在下载《斗罗大陆》：584 / 584 章**」
+- 6 路并发抓取，进度条 + 取消按钮垂直对齐于状态文字 + 进度条 block
+- 完成后窗口自动关闭，主阅读器从「第 1 章」打开本地大文件
+
+---
+
+> 阅读界面色彩配色、设置面板、跳章菜单等更多截图可丢入 `docs/screenshots/` 后再 PR。
+
+## 特性总览
 
 ### 阅读体验
 - 自动识别 **.txt / .epub / .mobi / .azw / .azw3** 格式
@@ -191,7 +226,7 @@ cmake --build build --target reader_core_tests -j
 ./build/ReaderCli/reader_cli /path/to/book.txt
 ```
 
-## 在线书源（bs.json）
+## 在线书源 bs.json
 
 书源以 JSON 配置形式定义在 `ReaderApp/Resources/bs.json`，每个源指定搜索接口、XPath 字段、目录页 URL 变换等：
 
