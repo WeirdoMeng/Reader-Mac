@@ -94,6 +94,13 @@ static void applyShortcut(NSMenuItem* mi, NSString* actionId) {
     [self installMenu];
     [NSApp activateIgnoringOtherApps:YES];
 
+    // ⚠️ 关键：监听 KeyBindings 变更，这样保存按钮 → commit → 重建菜单
+    [NSNotificationCenter.defaultCenter
+        addObserver:self
+           selector:@selector(keyBindingsChanged:)
+               name:KeyBindingsDidChangeNotification
+             object:nil];
+
     // Restore last session
     NSUserDefaults* d = NSUserDefaults.standardUserDefaults;
     NSString* lastFile = [d stringForKey:@"lastFile"];
