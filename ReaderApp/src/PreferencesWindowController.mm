@@ -9,13 +9,13 @@
 
 @interface DisplaySettingsView : NSView
 @property (weak)   ReaderCanvasView* canvas;
-@property (strong) NSStepper*  fontStepper;
+@property (strong) NSSlider*    fontSlider;
 @property (strong) NSTextField* fontValueLabel;
-@property (strong) NSStepper*  lineGapStepper;
+@property (strong) NSSlider*    lineGapSlider;
 @property (strong) NSTextField* lineGapValueLabel;
-@property (strong) NSStepper*  paraGapStepper;
+@property (strong) NSSlider*    paraGapSlider;
 @property (strong) NSTextField* paraGapValueLabel;
-@property (strong) NSButton*   indentCheckbox;
+@property (strong) NSButton*    indentSwitch;
 @property (strong) NSColorWell* textColorWell;
 @property (strong) NSColorWell* bgColorWell;
 @end
@@ -23,7 +23,7 @@
 @implementation DisplaySettingsView
 
 - (instancetype)initWithCanvas:(ReaderCanvasView*)canvas {
-    self = [super initWithFrame:NSMakeRect(0, 0, 480, 360)];
+    self = [super initWithFrame:NSMakeRect(0, 0, 500, 380)];
     if (self) {
         _canvas = canvas;
         [self buildUI];
@@ -31,139 +31,216 @@
     return self;
 }
 
-- (NSTextField*)labelKey:(NSString*)s {
+// ---- small UI helpers ----
+
+- (NSTextField*)sectionTitle:(NSString*)s {
+    NSTextField* t = [NSTextField labelWithString:s];
+    t.font = [NSFont systemFontOfSize:11 weight:NSFontWeightSemibold];
+    t.textColor = [NSColor secondaryLabelColor];
+    return t;
+}
+
+- (NSTextField*)rowLabel:(NSString*)s {
     NSTextField* t = [NSTextField labelWithString:s];
     t.font = [NSFont systemFontOfSize:13];
+    t.alignment = NSTextAlignmentRight;
+    return t;
+}
+
+- (NSTextField*)valueChip:(NSString*)s {
+    NSTextField* t = [NSTextField labelWithString:s];
+    t.font = [NSFont monospacedDigitSystemFontOfSize:12 weight:NSFontWeightMedium];
     t.textColor = [NSColor secondaryLabelColor];
     t.alignment = NSTextAlignmentRight;
     return t;
 }
 
-- (NSTextField*)valueLabel:(NSString*)s {
-    NSTextField* t = [NSTextField labelWithString:s];
-    t.font = [NSFont monospacedDigitSystemFontOfSize:13 weight:NSFontWeightRegular];
-    return t;
+- (NSBox*)separator {
+    NSBox* sep = [[NSBox alloc] init];
+    sep.boxType = NSBoxSeparator;
+    return sep;
 }
 
-- (NSView*)makeStepperRowMin:(double)min
-                          max:(double)max
-                        value:(double)v
-                       suffix:(NSString*)suffix
-                       action:(SEL)sel
-                  ivarStepper:(NSStepper* __strong *)stepperIvar
-                    ivarLabel:(NSTextField* __strong *)labelIvar {
-    NSStepper* st = [[NSStepper alloc] initWithFrame:NSMakeRect(0, 0, 28, 22)];
-    st.minValue = min; st.maxValue = max;
-    st.integerValue = (int)v;
-    st.target = self; st.action = sel;
+// row = label + slider + value chip
+- (NSView*)sliderRow:(NSString*)labelText
+                 min:(double)min
+                 max:(double)max
+               value:(double)v
+              suffix:(NSString*)suffix
+              action:(SEL)sel
+              slider:(NSSlider* __strong *)sliderOut
+               chip:(NSTextField* __strong *)chipOut
+            outLabel:(NSTextField* __strong *)labelOut {
+    NSTextField* lab = [self rowLabel:labelText];
+    lab.translatesAutoresizingMaskIntoConstraints = NO;
 
-    NSTextField* lab = [self valueLabel:[NSString stringWithFormat:@"%d %@", (int)v, suffix]];
+    NSSlider* sl = [NSSlider sliderWithValue:v minValue:min maxValue:max
+                                       target:self action:sel];
+    sl.numberOfTickMarks = (int)((max - min) >= 20 ? 5 : (max - min) + 1);
+    sl.allowsTickMarkValuesOnly = NO;
+    sl.translatesAutoresizingMaskIntoConstraints = NO;
+    [sl.widthAnchor constraintGreaterThanOrEqualToConstant:180].active = YES;
 
-    NSStackView* row = [NSStackView stackViewWithViews:@[lab, st]];
+    NSTextField* chip = [self valueChip:[NSString stringWithFormat:@"%d %@", (int)v, suffix]];
+    chip.translatesAutoresizingMaskIntoConstraints = NO;
+    [chip.widthAnchor constraintEqualToConstant:50].active = YES;
+
+    NSStackView* row = [NSStackView stackViewWithViews:@[lab, sl, chip]];
     row.orientation = NSUserInterfaceLayoutOrientationHorizontal;
-    row.spacing = 8;
+    row.spacing = 12;
     row.alignment = NSLayoutAttributeCenterY;
+    row.distribution = NSStackViewDistributionFill;
 
-    *stepperIvar = st;
-    *labelIvar   = lab;
+    [lab.widthAnchor constraintEqualToConstant:64].active = YES;
+    [row setHuggingPriority:NSLayoutPriorityDefaultLow forOrientation:NSLayoutConstraintOrientationHorizontal];
+    [sl  setContentHuggingPriority:NSLayoutPriorityDefaultLow
+                  forOrientation:NSLayoutConstraintOrientationHorizontal];
+
+    *sliderOut = sl;
+    *chipOut   = chip;
+    *labelOut  = lab;
+    return row;
+}
+
+- (NSView*)checkboxRow:(NSString*)labelText
+              checkbox:(NSButton*)cb {
+    NSTextField* lab = [self rowLabel:labelText];
+    [lab.widthAnchor constraintEqualToConstant:64].active = YES;
+    NSStackView* row = [NSStackView stackViewWithViews:@[lab, cb]];
+    row.orientation = NSUserInterfaceLayoutOrientationHorizontal;
+    row.spacing = 12;
+    row.alignment = NSLayoutAttributeCenterY;
+    return row;
+}
+
+- (NSView*)colorRow:(NSString*)labelText well:(NSColorWell*)well {
+    NSTextField* lab = [self rowLabel:labelText];
+    [lab.widthAnchor constraintEqualToConstant:64].active = YES;
+    [well.widthAnchor constraintEqualToConstant:60].active = YES;
+    [well.heightAnchor constraintEqualToConstant:24].active = YES;
+    NSStackView* row = [NSStackView stackViewWithViews:@[lab, well]];
+    row.orientation = NSUserInterfaceLayoutOrientationHorizontal;
+    row.spacing = 12;
+    row.alignment = NSLayoutAttributeCenterY;
     return row;
 }
 
 - (void)buildUI {
-    NSGridView* grid = [[NSGridView alloc] initWithFrame:NSMakeRect(20, 20, 440, 320)];
-    grid.rowSpacing = 14;
-    grid.columnSpacing = 16;
+    // ---- 排版分组 ----
+    NSTextField* secTypo = [self sectionTitle:@"排版"];
 
-    // 字体大小
-    NSStepper* st1 = nil; NSTextField* lb1 = nil;
-    NSView* row1 = [self makeStepperRowMin:8 max:64 value:[self.canvas fontSize]
-                                    suffix:@"pt"
-                                    action:@selector(fontChanged:)
-                               ivarStepper:&st1 ivarLabel:&lb1];
-    self.fontStepper = st1; self.fontValueLabel = lb1;
-    [grid addRowWithViews:@[[self labelKey:@"字体大小"], row1]];
+    NSSlider* s1; NSTextField* c1; NSTextField* l1;
+    NSView* r1 = [self sliderRow:@"字体大小" min:8 max:48 value:[self.canvas fontSize]
+                          suffix:@"pt" action:@selector(fontChanged:)
+                          slider:&s1 chip:&c1 outLabel:&l1];
+    self.fontSlider = s1; self.fontValueLabel = c1;
 
-    // 行距
-    NSStepper* st2 = nil; NSTextField* lb2 = nil;
-    NSView* row2 = [self makeStepperRowMin:0 max:40 value:[self.canvas lineGap]
-                                    suffix:@"px"
-                                    action:@selector(lineGapChanged:)
-                               ivarStepper:&st2 ivarLabel:&lb2];
-    self.lineGapStepper = st2; self.lineGapValueLabel = lb2;
-    [grid addRowWithViews:@[[self labelKey:@"行  距"], row2]];
+    NSSlider* s2; NSTextField* c2; NSTextField* l2;
+    NSView* r2 = [self sliderRow:@"行  距" min:0 max:30 value:[self.canvas lineGap]
+                          suffix:@"px" action:@selector(lineGapChanged:)
+                          slider:&s2 chip:&c2 outLabel:&l2];
+    self.lineGapSlider = s2; self.lineGapValueLabel = c2;
 
-    // 段距
-    NSStepper* st3 = nil; NSTextField* lb3 = nil;
-    NSView* row3 = [self makeStepperRowMin:0 max:80 value:[self.canvas paragraphGap]
-                                    suffix:@"px"
-                                    action:@selector(paraGapChanged:)
-                               ivarStepper:&st3 ivarLabel:&lb3];
-    self.paraGapStepper = st3; self.paraGapValueLabel = lb3;
-    [grid addRowWithViews:@[[self labelKey:@"段  距"], row3]];
+    NSSlider* s3; NSTextField* c3; NSTextField* l3;
+    NSView* r3 = [self sliderRow:@"段  距" min:0 max:60 value:[self.canvas paragraphGap]
+                          suffix:@"px" action:@selector(paraGapChanged:)
+                          slider:&s3 chip:&c3 outLabel:&l3];
+    self.paraGapSlider = s3; self.paraGapValueLabel = c3;
 
-    // 首行缩进
-    self.indentCheckbox = [NSButton checkboxWithTitle:@"开启首行缩进"
-                                                target:self
-                                                action:@selector(indentChanged:)];
-    self.indentCheckbox.state = [self.canvas firstLineIndent] ? NSControlStateValueOn : NSControlStateValueOff;
-    [grid addRowWithViews:@[[self labelKey:@"首行缩进"], self.indentCheckbox]];
+    self.indentSwitch = [NSButton checkboxWithTitle:@"开启首行缩进"
+                                              target:self
+                                              action:@selector(indentChanged:)];
+    self.indentSwitch.state = [self.canvas firstLineIndent] ?
+        NSControlStateValueOn : NSControlStateValueOff;
+    NSView* r4 = [self checkboxRow:@"首行缩进" checkbox:self.indentSwitch];
 
-    // 文字颜色
-    self.textColorWell = [[NSColorWell alloc] initWithFrame:NSMakeRect(0, 0, 64, 24)];
+    // ---- 颜色分组 ----
+    NSTextField* secColor = [self sectionTitle:@"颜色"];
+
+    self.textColorWell = [[NSColorWell alloc] init];
     self.textColorWell.color = [self.canvas textColor];
-    self.textColorWell.target = self; self.textColorWell.action = @selector(textColorChanged:);
-    [grid addRowWithViews:@[[self labelKey:@"文字颜色"], self.textColorWell]];
+    self.textColorWell.target = self;
+    self.textColorWell.action = @selector(textColorChanged:);
+    NSView* r5 = [self colorRow:@"文字颜色" well:self.textColorWell];
 
-    // 背景颜色
-    self.bgColorWell = [[NSColorWell alloc] initWithFrame:NSMakeRect(0, 0, 64, 24)];
+    self.bgColorWell = [[NSColorWell alloc] init];
     self.bgColorWell.color = [self.canvas backgroundColor];
-    self.bgColorWell.target = self; self.bgColorWell.action = @selector(bgColorChanged:);
-    [grid addRowWithViews:@[[self labelKey:@"背景颜色"], self.bgColorWell]];
+    self.bgColorWell.target = self;
+    self.bgColorWell.action = @selector(bgColorChanged:);
+    NSView* r6 = [self colorRow:@"背景颜色" well:self.bgColorWell];
 
-    // 列对齐
-    [grid columnAtIndex:0].xPlacement = NSGridCellPlacementTrailing;
-    [grid columnAtIndex:1].xPlacement = NSGridCellPlacementLeading;
-    for (NSInteger i = 0; i < grid.numberOfRows; ++i) {
-        [grid rowAtIndex:i].yPlacement = NSGridCellPlacementCenter;
-    }
-    [grid columnAtIndex:0].width = 90;
+    // 颜色重置按钮
+    NSButton* resetColors = [NSButton buttonWithTitle:@"恢复系统配色"
+                                                 target:self
+                                                 action:@selector(resetColors:)];
+    resetColors.bezelStyle = NSBezelStyleRoundRect;
+    resetColors.controlSize = NSControlSizeSmall;
 
-    grid.translatesAutoresizingMaskIntoConstraints = NO;
-    [self addSubview:grid];
-    [NSLayoutConstraint activateConstraints:@[
-        [grid.topAnchor      constraintEqualToAnchor:self.topAnchor      constant:24],
-        [grid.leadingAnchor  constraintEqualToAnchor:self.leadingAnchor  constant:24],
-        [grid.trailingAnchor constraintEqualToAnchor:self.trailingAnchor constant:-24],
+    // ---- 主 stack 垂直排列 ----
+    NSStackView* main = [NSStackView stackViewWithViews:@[
+        secTypo, r1, r2, r3, r4,
+        [self separator],
+        secColor, r5, r6, resetColors,
     ]];
+    main.orientation = NSUserInterfaceLayoutOrientationVertical;
+    main.alignment = NSLayoutAttributeLeading;
+    main.spacing = 12;
+    main.translatesAutoresizingMaskIntoConstraints = NO;
 
-    NSTextField* tip = [NSTextField labelWithString:@"修改即时生效，并自动保存。下次启动恢复。"];
+    // 给每一行设宽度约束（一致宽）
+    for (NSView* row in @[r1, r2, r3, r4, r5, r6]) {
+        row.translatesAutoresizingMaskIntoConstraints = NO;
+    }
+    [self addSubview:main];
+
+    [NSLayoutConstraint activateConstraints:@[
+        [main.topAnchor      constraintEqualToAnchor:self.topAnchor      constant:20],
+        [main.leadingAnchor  constraintEqualToAnchor:self.leadingAnchor  constant:24],
+        [main.trailingAnchor constraintEqualToAnchor:self.trailingAnchor constant:-24],
+    ]];
+    for (NSView* row in @[r1, r2, r3]) {
+        [row.leadingAnchor  constraintEqualToAnchor:main.leadingAnchor].active = YES;
+        [row.trailingAnchor constraintEqualToAnchor:main.trailingAnchor].active = YES;
+    }
+
+    // 底部提示
+    NSTextField* tip = [NSTextField labelWithString:@"修改即时生效并自动保存，下次启动恢复。"];
     tip.font = [NSFont systemFontOfSize:11];
-    tip.textColor = [NSColor secondaryLabelColor];
+    tip.textColor = [NSColor tertiaryLabelColor];
     tip.translatesAutoresizingMaskIntoConstraints = NO;
     [self addSubview:tip];
     [NSLayoutConstraint activateConstraints:@[
         [tip.leadingAnchor constraintEqualToAnchor:self.leadingAnchor constant:24],
-        [tip.bottomAnchor  constraintEqualToAnchor:self.bottomAnchor  constant:-16],
+        [tip.bottomAnchor  constraintEqualToAnchor:self.bottomAnchor  constant:-14],
     ]];
 }
 
-- (void)fontChanged:(NSStepper*)s {
-    [self.canvas setFontSize:(int)s.integerValue];
-    self.fontValueLabel.stringValue = [NSString stringWithFormat:@"%d pt", (int)s.integerValue];
+- (void)fontChanged:(NSSlider*)s {
+    int v = (int)round(s.doubleValue);
+    [self.canvas setFontSize:v];
+    self.fontValueLabel.stringValue = [NSString stringWithFormat:@"%d pt", v];
 }
-- (void)lineGapChanged:(NSStepper*)s {
-    [self.canvas setLineGap:(int)s.integerValue];
-    self.lineGapValueLabel.stringValue = [NSString stringWithFormat:@"%d px", (int)s.integerValue];
+- (void)lineGapChanged:(NSSlider*)s {
+    int v = (int)round(s.doubleValue);
+    [self.canvas setLineGap:v];
+    self.lineGapValueLabel.stringValue = [NSString stringWithFormat:@"%d px", v];
 }
-- (void)paraGapChanged:(NSStepper*)s {
-    [self.canvas setParagraphGap:(int)s.integerValue];
-    self.paraGapValueLabel.stringValue = [NSString stringWithFormat:@"%d px", (int)s.integerValue];
+- (void)paraGapChanged:(NSSlider*)s {
+    int v = (int)round(s.doubleValue);
+    [self.canvas setParagraphGap:v];
+    self.paraGapValueLabel.stringValue = [NSString stringWithFormat:@"%d px", v];
 }
 - (void)indentChanged:(NSButton*)b {
     [self.canvas setFirstLineIndent:b.state == NSControlStateValueOn];
 }
 - (void)textColorChanged:(NSColorWell*)cw { [self.canvas setTextColor:cw.color]; }
-- (void)bgColorChanged:(NSColorWell*)cw { [self.canvas setBackgroundColor:cw.color]; }
+- (void)bgColorChanged:(NSColorWell*)cw   { [self.canvas setBackgroundColor:cw.color]; }
+- (void)resetColors:(id)sender {
+    [self.canvas setTextColor:[NSColor labelColor]];
+    [self.canvas setBackgroundColor:[NSColor windowBackgroundColor]];
+    self.textColorWell.color = [self.canvas textColor];
+    self.bgColorWell.color   = [self.canvas backgroundColor];
+}
 @end
 
 // =====================================================================
