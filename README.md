@@ -124,18 +124,20 @@ open "build/ReaderApp/摸鱼书摊.app"
 xattr -dr com.apple.quarantine "/Applications/摸鱼书摊.app"
 ```
 
-### 方式 3：Homebrew Cask（需先建私有 tap）
+### 方式 3：Homebrew Cask（推荐 ⭐）
 
 ```bash
 brew tap WeirdoMeng/tap
 brew install --cask moyushutan
 ```
 
-`brew install --cask` 会自动剥离 quarantine 属性，免去 Gatekeeper 弹窗。
+完成 → App 自动装到 `/Applications/摸鱼书摊.app`，菜单栏可直接启动。
 
-> ⚠️ 这条命令开箱跑会报「tap not found」，因为 `WeirdoMeng/homebrew-tap` 仓库还没建。
-> 首次发版步骤详见 [docs/RELEASE_GUIDE.md](docs/RELEASE_GUIDE.md)。建好 tap + 发了
-> Release 之后，**用户侧**才能跑这两行装上。
+> 若首次启动被 Gatekeeper 拦截「无法验证开发者」，终端跑一条剥 quarantine：
+> ```bash
+> xattr -dr com.apple.quarantine "/Applications/摸鱼书摊.app"
+> ```
+> 之后双击启动一切正常。维护者发版流程见 [docs/RELEASE_GUIDE.md](docs/RELEASE_GUIDE.md)。
 
 ## 快捷键
 
