@@ -203,12 +203,17 @@
     resetColors.controlSize = NSControlSizeSmall;
 
     // ---- 主 stack 垂直排列 ----
+    NSTextField* footer = [NSTextField labelWithString:@"修改即时生效并自动保存，下次启动恢复。"];
+    footer.font = [NSFont systemFontOfSize:11];
+    footer.textColor = [NSColor tertiaryLabelColor];
+
     NSStackView* main = [NSStackView stackViewWithViews:@[
         secTypo, r1, r0, r2, r3, r4,
         [self separator],
         secAuto, rA, autoTip,
         [self separator],
         secColor, r5, r6, resetColors,
+        footer,
     ]];
     main.orientation = NSUserInterfaceLayoutOrientationVertical;
     main.alignment = NSLayoutAttributeLeading;
@@ -225,23 +230,12 @@
         [main.topAnchor      constraintEqualToAnchor:self.topAnchor      constant:20],
         [main.leadingAnchor  constraintEqualToAnchor:self.leadingAnchor  constant:24],
         [main.trailingAnchor constraintEqualToAnchor:self.trailingAnchor constant:-24],
-        [main.bottomAnchor   constraintLessThanOrEqualToAnchor:self.bottomAnchor constant:-50],
+        [main.bottomAnchor   constraintLessThanOrEqualToAnchor:self.bottomAnchor constant:-16],
     ]];
     for (NSView* row in @[r1, r0, r2, r3, rA]) {
         [row.leadingAnchor  constraintEqualToAnchor:main.leadingAnchor].active = YES;
         [row.trailingAnchor constraintEqualToAnchor:main.trailingAnchor].active = YES;
     }
-
-    // 底部提示
-    NSTextField* tip = [NSTextField labelWithString:@"修改即时生效并自动保存，下次启动恢复。"];
-    tip.font = [NSFont systemFontOfSize:11];
-    tip.textColor = [NSColor tertiaryLabelColor];
-    tip.translatesAutoresizingMaskIntoConstraints = NO;
-    [self addSubview:tip];
-    [NSLayoutConstraint activateConstraints:@[
-        [tip.leadingAnchor constraintEqualToAnchor:self.leadingAnchor constant:24],
-        [tip.bottomAnchor  constraintEqualToAnchor:self.bottomAnchor  constant:-14],
-    ]];
 }
 
 - (void)fontChanged:(NSSlider*)s {
@@ -297,9 +291,10 @@
 @implementation ShortcutsView
 
 - (instancetype)init {
-    self = [super initWithFrame:NSMakeRect(0, 0, 460, 320)];
+    self = [super initWithFrame:NSMakeRect(0, 0, 480, 480)];
     if (self) {
         _recorders = [NSMutableDictionary dictionary];
+        self.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
         [self reloadActions];
         [self buildUI];
         [NSNotificationCenter.defaultCenter
@@ -325,40 +320,56 @@
 }
 
 - (void)buildUI {
-    NSScrollView* sv = [[NSScrollView alloc]
-                           initWithFrame:NSMakeRect(10, 50, 440, 260)];
+    // Auto-layout：table scrollview 撑满中间，底部一行按钮+提示
+    NSScrollView* sv = [[NSScrollView alloc] init];
+    sv.translatesAutoresizingMaskIntoConstraints = NO;
     sv.hasVerticalScroller = YES;
     sv.borderType = NSBezelBorder;
 
-    self.table = [[NSTableView alloc] initWithFrame:sv.bounds];
+    self.table = [[NSTableView alloc] init];
     self.table.rowHeight = 30;
     self.table.dataSource = self;
     self.table.delegate = self;
     self.table.allowsColumnResizing = YES;
+    self.table.usesAlternatingRowBackgroundColors = YES;
 
     NSTableColumn* c1 = [[NSTableColumn alloc] initWithIdentifier:@"action"];
-    c1.title = @"动作"; c1.width = 220;
+    c1.title = @"动作"; c1.width = 220; c1.minWidth = 160;
     [self.table addTableColumn:c1];
-
     NSTableColumn* c2 = [[NSTableColumn alloc] initWithIdentifier:@"shortcut"];
-    c2.title = @"快捷键"; c2.width = 200;
+    c2.title = @"快捷键"; c2.width = 200; c2.minWidth = 140;
     [self.table addTableColumn:c2];
 
     sv.documentView = self.table;
     [self addSubview:sv];
 
-    // 恢复默认按钮 + 提示
     NSButton* resetAll = [NSButton buttonWithTitle:@"恢复全部默认"
                                               target:self
                                               action:@selector(resetAll:)];
-    resetAll.frame = NSMakeRect(10, 12, 130, 28);
+    resetAll.translatesAutoresizingMaskIntoConstraints = NO;
     [self addSubview:resetAll];
 
     NSTextField* tip = [NSTextField labelWithString:@"提示：点击按钮录入新组合，按下即生效。Esc 取消。"];
     tip.font = [NSFont systemFontOfSize:11];
     tip.textColor = [NSColor secondaryLabelColor];
-    tip.frame = NSMakeRect(150, 16, 310, 16);
+    tip.translatesAutoresizingMaskIntoConstraints = NO;
     [self addSubview:tip];
+
+    [NSLayoutConstraint activateConstraints:@[
+        // 表格撑满除底部一行外的整个区域
+        [sv.topAnchor      constraintEqualToAnchor:self.topAnchor      constant:14],
+        [sv.leadingAnchor  constraintEqualToAnchor:self.leadingAnchor  constant:14],
+        [sv.trailingAnchor constraintEqualToAnchor:self.trailingAnchor constant:-14],
+        [sv.bottomAnchor   constraintEqualToAnchor:resetAll.topAnchor  constant:-10],
+
+        // 底部按钮 + 提示
+        [resetAll.leadingAnchor constraintEqualToAnchor:self.leadingAnchor constant:14],
+        [resetAll.bottomAnchor  constraintEqualToAnchor:self.bottomAnchor  constant:-14],
+
+        [tip.leadingAnchor  constraintEqualToAnchor:resetAll.trailingAnchor constant:14],
+        [tip.centerYAnchor  constraintEqualToAnchor:resetAll.centerYAnchor],
+        [tip.trailingAnchor constraintLessThanOrEqualToAnchor:self.trailingAnchor constant:-14],
+    ]];
 }
 
 - (void)resetAll:(id)sender {
@@ -437,14 +448,7 @@
 
     NSTabViewItem* tab1 = [[NSTabViewItem alloc] initWithIdentifier:@"display"];
     tab1.label = @"显示设置";
-    DisplaySettingsView* disp = [[DisplaySettingsView alloc] initWithCanvas:self.canvas];
-    NSScrollView* sv = [[NSScrollView alloc] init];
-    sv.hasVerticalScroller = YES;
-    sv.drawsBackground = NO;
-    sv.borderType = NSNoBorder;
-    sv.documentView = disp;
-    sv.autohidesScrollers = YES;
-    tab1.view = sv;
+    tab1.view = [[DisplaySettingsView alloc] initWithCanvas:self.canvas];
     [tabs addTabViewItem:tab1];
 
     NSTabViewItem* tab2 = [[NSTabViewItem alloc] initWithIdentifier:@"shortcuts"];
