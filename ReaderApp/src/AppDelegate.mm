@@ -7,14 +7,15 @@
 // Helper: pull the current keyChar + modifiers for an action id, apply to
 // an NSMenuItem.
 static void applyShortcut(NSMenuItem* mi, NSString* actionId) {
+    if (!mi) return;
     KBAction* a = [KeyBindings.shared actionWithId:actionId];
     if (!a) return;
     NSString* k = a.shortcut.keyChar.lowercaseString ?: @"";
     mi.keyEquivalent = k;
     mi.keyEquivalentModifierMask = a.shortcut.modifiers;
     mi.enabled = YES;
-    NSLog(@"[applyShortcut] %@ => '%@' mods=0x%lx",
-          actionId, k, (unsigned long)a.shortcut.modifiers);
+    NSLog(@"[applyShortcut] %@ => '%@' mods=0x%lx (item=%@)",
+          actionId, k, (unsigned long)a.shortcut.modifiers, mi.title);
 }
 
 @interface AppDelegate () <NSMenuDelegate>
@@ -27,7 +28,8 @@ static void applyShortcut(NSMenuItem* mi, NSString* actionId) {
 @property (strong) NSMenu* chaptersMenu;
 @property (strong) NSMenu* bookmarksMenu;
 @property (strong) NSMenu* recentMenu;
-@property (strong) id    arrowKeyMonitor;
+@property (strong) id      arrowKeyMonitor;  // legacy, no longer used
+@property (strong) NSMutableDictionary<NSString*, NSMenuItem*>* boundItems;
 @end
 
 @implementation AppDelegate
@@ -99,36 +101,8 @@ static void applyShortcut(NSMenuItem* mi, NSString* actionId) {
     // Register the global show/hide hotkey from current bindings.
     [self registerGlobalHotkeyFromBindings];
 
-    // Backup arrow-key monitor: ensure 翻页快捷键 always works regardless of
-    // first-responder routing. Eats the event before AppKit dispatches it to
-    // any control that might be focused.
-    __weak typeof(self) ws = self;
-    self.arrowKeyMonitor = [NSEvent addLocalMonitorForEventsMatchingMask:NSEventMaskKeyDown
-                                                                  handler:^NSEvent*(NSEvent* e) {
-        if (![ws.canvas hasBook]) return e;
-        if (e.window != ws.window) return e;
-        // Don't steal keys when a modal sheet / panel is up
-        if (NSApp.modalWindow && NSApp.modalWindow != ws.window) return e;
-        NSEventModifierFlags mods = e.modifierFlags &
-            (NSEventModifierFlagCommand | NSEventModifierFlagOption |
-             NSEventModifierFlagControl);
-        NSString* s = e.charactersIgnoringModifiers;
-        if (s.length == 0) return e;
-        unichar k = [s characterAtIndex:0];
-        switch (k) {
-            case NSLeftArrowFunctionKey:
-                if (mods & NSEventModifierFlagControl) [ws.canvas jumpPrevChapter];
-                else [ws.canvas pageUp];
-                return nil;
-            case NSRightArrowFunctionKey:
-                if (mods & NSEventModifierFlagControl) [ws.canvas jumpNextChapter];
-                else [ws.canvas pageDown];
-                return nil;
-            case NSUpArrowFunctionKey:   [ws.canvas lineUp]; return nil;
-            case NSDownArrowFunctionKey: [ws.canvas lineDown]; return nil;
-        }
-        return e;
-    }];
+    // 方向键由 ReaderCanvasView.keyDown 直接处理（不再用 NSEvent monitor）。
+    // 之前的 arrowKeyMonitor 会在 prefs 关闭后因 e.window 路由错乱失效。
 }
 
 - (void)saveWindowFrame:(NSNotification*)note {
@@ -137,8 +111,20 @@ static void applyShortcut(NSMenuItem* mi, NSString* actionId) {
 }
 
 - (void)keyBindingsChanged:(NSNotification*)note {
-    NSLog(@"[AppDelegate] 快捷键变更通知，重建菜单");
-    [self installMenu];
+    NSLog(@"[AppDelegate] 快捷键变更通知，原地刷新菜单项");
+    // 不重建整个菜单（重建后 macOS 不刷新 accelerator 缓存，导致需要重启）
+    // 直接对每个已绑定的 NSMenuItem 更新 keyEquivalent + modifierMask。
+    for (NSString* actionId in self.boundItems) {
+        NSMenuItem* mi = self.boundItems[actionId];
+        applyShortcut(mi, actionId);
+    }
+    // "全局显隐 (...)" 提示文字也跟着刷新
+    KBAction* hk = [KeyBindings.shared actionWithId:@"globalToggle"];
+    NSMenuItem* hkLabel = self.boundItems[@"__globalToggleLabel"];
+    if (hkLabel && hk) {
+        hkLabel.title = [NSString stringWithFormat:@"全局显隐 (%@)",
+                                                    hk.shortcut.displayString];
+    }
     [self registerGlobalHotkeyFromBindings];
 }
 
@@ -170,6 +156,7 @@ static void applyShortcut(NSMenuItem* mi, NSString* actionId) {
 }
 
 - (void)installMenu {
+    self.boundItems = [NSMutableDictionary dictionary];
     NSMenu* mainMenu = [[NSMenu alloc] init];
 
     // 应用菜单（精简版）
@@ -185,6 +172,7 @@ static void applyShortcut(NSMenuItem* mi, NSString* actionId) {
                                              keyEquivalent:@""];
     prefs.target = self;
     applyShortcut(prefs, @"preferences");
+    self.boundItems[@"preferences"] = prefs;
     [appMenu addItem:prefs];
     [appMenu addItem:[NSMenuItem separatorItem]];
     [appMenu addItemWithTitle:@"退出摸鱼书摊"
@@ -201,6 +189,7 @@ static void applyShortcut(NSMenuItem* mi, NSString* actionId) {
                                            keyEquivalent:@""];
     open.target = self;
     applyShortcut(open, @"openFile");
+    self.boundItems[@"openFile"] = open;
     [fileMenu addItem:open];
 
     NSMenuItem* recentItem = [[NSMenuItem alloc] initWithTitle:@"最近阅读"
@@ -216,6 +205,7 @@ static void applyShortcut(NSMenuItem* mi, NSString* actionId) {
                                             keyEquivalent:@""];
     close.target = self;
     applyShortcut(close, @"closeFile");
+    self.boundItems[@"closeFile"] = close;
     [fileMenu addItem:close];
     fileItem.submenu = fileMenu;
     [mainMenu addItem:fileItem];
@@ -228,18 +218,21 @@ static void applyShortcut(NSMenuItem* mi, NSString* actionId) {
                                                   keyEquivalent:@""];
     borderless.target = self;
     applyShortcut(borderless, @"borderless");
+    self.boundItems[@"borderless"] = borderless;
     [viewMenu addItem:borderless];
     NSMenuItem* fullscreen = [[NSMenuItem alloc] initWithTitle:@"进入/退出全屏"
                                                          action:@selector(toggleFullScreen:)
                                                   keyEquivalent:@""];
     fullscreen.target = self;
     applyShortcut(fullscreen, @"fullScreen");
+    self.boundItems[@"fullScreen"] = fullscreen;
     [viewMenu addItem:fullscreen];
     NSMenuItem* top = [[NSMenuItem alloc] initWithTitle:@"窗口置顶"
                                                   action:@selector(toggleTopMost:)
                                            keyEquivalent:@""];
     top.target = self;
     applyShortcut(top, @"topMost");
+    self.boundItems[@"topMost"] = top;
     [viewMenu addItem:top];
     viewItem.submenu = viewMenu;
     [mainMenu addItem:viewItem];
@@ -252,12 +245,14 @@ static void applyShortcut(NSMenuItem* mi, NSString* actionId) {
                                               keyEquivalent:@""];
     prevCh.target = self;
     applyShortcut(prevCh, @"prevChapter");
+    self.boundItems[@"prevChapter"] = prevCh;
     [goMenu addItem:prevCh];
     NSMenuItem* nextCh = [[NSMenuItem alloc] initWithTitle:@"下一章"
                                                      action:@selector(jumpNextChapter:)
                                               keyEquivalent:@""];
     nextCh.target = self;
     applyShortcut(nextCh, @"nextChapter");
+    self.boundItems[@"nextChapter"] = nextCh;
     [goMenu addItem:nextCh];
     [goMenu addItem:[NSMenuItem separatorItem]];
 
@@ -275,6 +270,7 @@ static void applyShortcut(NSMenuItem* mi, NSString* actionId) {
                                                keyEquivalent:@""];
     addMark.target = self;
     applyShortcut(addMark, @"addBookmark");
+    self.boundItems[@"addBookmark"] = addMark;
     [goMenu addItem:addMark];
 
     NSMenuItem* bookmarksItem = [[NSMenuItem alloc] initWithTitle:@"书签列表"
@@ -293,6 +289,7 @@ static void applyShortcut(NSMenuItem* mi, NSString* actionId) {
                                                      action:nil
                                               keyEquivalent:@""];
     hideHK.enabled = NO;
+    self.boundItems[@"__globalToggleLabel"] = hideHK;
     [goMenu addItem:hideHK];
 
     goItem.submenu = goMenu;
@@ -513,6 +510,7 @@ static void applyShortcut(NSMenuItem* mi, NSString* actionId) {
 - (void)prefsWindowWillClose:(NSNotification*)note {
     // 延迟一帧让 prefs 真正关掉，再把焦点回到主窗口的 canvas
     dispatch_async(dispatch_get_main_queue(), ^{
+        [NSApp activateIgnoringOtherApps:YES];
         [self.window makeKeyAndOrderFront:nil];
         [self.window makeFirstResponder:self.canvas];
     });
