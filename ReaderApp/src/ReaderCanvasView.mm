@@ -72,7 +72,7 @@ public:
         _listener->view = self;
         self.textColorCache = [NSColor labelColor];
         self.bgColorCache   = [NSColor windowBackgroundColor];
-        self.autoPagingInterval = 5.0;
+        _autoPagingInterval = 5.0;
         [self loadDisplayProfileFromUserDefaults];
         self.wantsLayer = YES;
         self.layer.backgroundColor = [self.bgColorCache CGColor];
@@ -136,8 +136,8 @@ public:
 - (BOOL)isAutoPaging { return self.autoPagingTimer != nil; }
 
 - (void)setAutoPagingInterval:(double)seconds {
-    self.autoPagingInterval = seconds;
-    if ([self isAutoPaging]) {  // restart with new interval
+    _autoPagingInterval = seconds;   // 直接赋值 ivar，避免递归调用 setter
+    if ([self isAutoPaging]) {        // restart with new interval
         [self toggleAutoPaging];
         [self toggleAutoPaging];
     }
