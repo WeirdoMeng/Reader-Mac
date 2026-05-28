@@ -604,7 +604,7 @@ static NSColor* unarchiveColor(NSData* d) {
             if (ctrl) _book->JumpPrevChapter(); else _book->PageUp();
             break;
         case NSRightArrowFunctionKey:
-            if (ctrl) _book->JumpNextChapter(); else _book->PageDown();
+            if (ctrl) _book->JumpNextChapter(); else [self pageDown];
             break;
         case NSUpArrowFunctionKey:   _book->LineUp(); break;
         case NSDownArrowFunctionKey: _book->LineDown(); break;
@@ -614,7 +614,7 @@ static NSColor* unarchiveColor(NSData* d) {
 
 // ---------- mouse: left = next, right = prev ----------
 - (void)mouseDown:(NSEvent*)event {
-    if (_book) _book->PageDown();
+    [self pageDown];
 }
 - (void)rightMouseDown:(NSEvent*)event {
     if (_book) _book->PageUp();

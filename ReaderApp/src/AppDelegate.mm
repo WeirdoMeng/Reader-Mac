@@ -486,7 +486,14 @@ static void applyShortcut(NSMenuItem* mi, NSString* actionId) {
         for (int i = 0; i < (int)recents.count; ++i) {
             NSDictionary* e = recents[i];
             NSString* path = e[@"path"];
-            NSString* title = [NSString stringWithFormat:@"%@", path.lastPathComponent];
+            // 在线整本：~/.../MoyuShutan/books/<书名>.txt → "[在线] 书名"
+            NSString* title;
+            if ([OnlineBookmarketMeta isOnlineBookPath:path]) {
+                title = [NSString stringWithFormat:@"[在线] %@",
+                         [OnlineBookmarketMeta bookTitleFromPath:path] ?: path.lastPathComponent];
+            } else {
+                title = path.lastPathComponent;
+            }
             NSMenuItem* mi = [[NSMenuItem alloc] initWithTitle:title
                                                          action:@selector(openRecent:)
                                                   keyEquivalent:@""];
@@ -640,6 +647,17 @@ static void applyShortcut(NSMenuItem* mi, NSString* actionId) {
 }
 
 - (void)clearRecent:(id)sender {
+    // 在线整本（位于 ~/Library/.../MoyuShutan/books/）属于 App 自己下载的，
+    // 清最近阅读时把这些 .txt 顺手删掉；用户从其他地方导入的本地文件保留。
+    NSFileManager* fm = NSFileManager.defaultManager;
+    NSArray<NSDictionary*>* recents = [ReaderCanvasView recentBooks];
+    for (NSDictionary* e in recents) {
+        NSString* p = e[@"path"];
+        if ([OnlineBookmarketMeta isOnlineBookPath:p] &&
+            [fm fileExistsAtPath:p]) {
+            [fm removeItemAtPath:p error:nil];
+        }
+    }
     [ReaderCanvasView clearRecentBooks];
 }
 

@@ -1,51 +1,102 @@
-# Reader-Mac
+# 摸鱼书摊
 
-将 [binbyu/Reader](https://github.com/binbyu/Reader) Windows 桌面阅读器移植为原生 macOS 应用。
+> 一个克制、好用的原生 macOS 小说阅读器 — 摸鱼时也能优雅看书。
 
-- ✅ 原生 AppKit + Core Text，universal binary（arm64 + x86_64）
-- ✅ 支持 .txt / .epub / .mobi / .azw / .azw3
-- ✅ 章节自动识别 / 分页排版 / 行距段距首行缩进
-- ✅ 设置面板（字体大小、颜色、背景、行距）
-- ✅ 整窗透明（Ctrl + 滚轮调节）
-- ✅ 无边框 / 全屏 / 置顶
-- ✅ 全局热键 Option + H 显隐
-- ✅ 书签（per-file）+ 章节跳转目录
-- ✅ 会话恢复（重启自动打开上次的书 + 阅读位置）
-- ⏳ 在线书源（爬虫核心已搭好接口，UI 待补）
+![摸鱼书摊](ReaderApp/Resources/AppIcon.iconset/icon_256x256.png)
+
+- 原生 AppKit + Core Text，universal binary（arm64 + x86_64），完全无第三方 UI 框架依赖
+- 单一二进制 < 5 MB，冷启动 < 100 ms
+- 完全离线可用；联网仅在你主动「搜书」时
+- 全自定义快捷键 / 字号 / 颜色 / 行距，所见即所设，无重启
+
+## 截图
+
+### 在线搜书 + 整本下载
+![在线小说](docs/screenshots/02_online.png)
+
+> 双击搜索结果即整本并发下载到本地，之后所有阅读都是纯本地体验。
+
+<!-- 阅读界面、设置面板、跳章菜单等截图欢迎补充到 docs/screenshots/ 后再 PR -->
+
+## 特性
+
+### 阅读体验
+- 自动识别 **.txt / .epub / .mobi / .azw / .azw3** 格式
+- 智能章节解析：「第 X 章 / 卷 / 节」、「楔子」、「序章」自动建目录
+- 字号 / 字间距 / 行距 / 段距 / 首行缩进 实时可调（设置即生效）
+- 自定义文字颜色 + 背景色 + 整窗透明度（Ctrl + 滚轮调节）
+- 无边框模式 / 窗口置顶模式
+- 自动翻页（可设秒数）
+
+### 在线小说（笔趣阁源内置）
+- 搜索框输入书名/作者，**回车多源并发搜索**
+- 双击任意搜索结果 → 整本**并发下载到本地**（6 路并发，500+ 章实测可控）
+- 进度条 + 可随时取消
+- 下载后**所有阅读 = 离线本地阅读**：自由翻页、跳任意章、断网不影响
+- 章节目录自动从 .txt 解析（不依赖站点）
+
+### 数据持久化
+- 每本书独立阅读位置记忆，重启自动接着读
+- 每本书独立书签（Cmd + M 添加，按位置跳转）
+- 最近阅读列表（最多 20 本，区分在线下载 vs 本地导入）
+- 显示设置 / 快捷键 / 窗口风格 等全部持久化
+
+### 自定义快捷键
+- 显隐 / 翻页 / 跳章 / 自动翻页 / 字号 / 设置 …… 12 + 个操作全部可重新绑定
+- 在「设置 → 快捷键」面板里改完立即生效，**无需重启 App**
+- 支持组合键 + 全局热键（Carbon RegisterEventHotKey 注入）
+
+### 清晰的本地数据布局
+```
+~/Library/Application Support/MoyuShutan/
+└── books/                 # 在线下载的整本 .txt（清最近阅读时一并删除）
+    └── <书名>.txt
+```
+- 用户从本地拖入的书不动这里，纯外部引用
+- 「清除最近记录」只删 App 自己下的，不动用户文件
 
 ## 安装
 
-### 方式 1：Homebrew Cask（推荐，自动绕过 Gatekeeper）
-
-```bash
-brew tap WeirdoMeng/tap
-brew install --cask reader-mac
-```
-
-### 方式 2：下载 DMG
-
-去 [Releases](https://github.com/WeirdoMeng/Reader-Mac/releases) 下载最新版本的 `Reader-Mac-x.y.z.dmg`，挂载后拖到 Applications。
-
-由于未购买 Apple 开发者证书做公证，首次启动会被 Gatekeeper 拦截。两种解决方法：
-
-**方法 A**：右键 `Reader-Mac.app` → 选 **Open**，确认弹窗 → 一次性绕过。
-
-**方法 B**：在终端执行（剥离 quarantine 属性）：
-```bash
-xattr -dr com.apple.quarantine /Applications/Reader-Mac.app
-```
-
-### 方式 3：从源码编译
+### 方式 1：从源码编译（开发者推荐）
 
 ```bash
 git clone https://github.com/WeirdoMeng/Reader-Mac.git
 cd Reader-Mac
-cmake -S ReaderCore -B build -DCMAKE_BUILD_TYPE=Release
+
+# 配置 + 编译
+cmake -S ReaderCore -B build -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
 cmake --build build -j
-open build/ReaderApp/ReaderMac.app
+
+# 启动
+open "build/ReaderApp/摸鱼书摊.app"
 ```
 
 依赖：Xcode Command Line Tools、CMake ≥ 3.20。
+
+### 方式 2：DMG 一键安装包
+
+```bash
+./scripts/make_dmg.sh 0.2.0   # 生成 dist/MoyuShutan-0.2.0.dmg
+```
+
+挂载 DMG 拖到 Applications。因未购买 Apple 开发者签名，首次启动可能被 Gatekeeper 拦：
+
+**方案 A**：右键 App → 选 **打开** → 弹窗里确认。
+**方案 B**：终端剥离 quarantine 属性：
+
+```bash
+xattr -dr com.apple.quarantine "/Applications/摸鱼书摊.app"
+```
+
+### 方式 3：Homebrew Cask
+
+```bash
+brew tap WeirdoMeng/tap
+brew install --cask moyushutan
+```
+
+`brew install --cask` 会自动剥离 quarantine 属性，免去 Gatekeeper 弹窗。
 
 ## 快捷键
 
@@ -61,72 +112,133 @@ open build/ReaderApp/ReaderMac.app
 | Ctrl + 滚轮 | 整窗透明度 ± 0.05 |
 | Ctrl + Shift + 滚轮 | 透明度极值切换 |
 
-### 菜单
+### 菜单（全部可在 设置 → 快捷键 里改）
 | 按键 | 作用 |
 |---|---|
 | Cmd + O | 打开文件 |
 | Cmd + W | 关闭当前书 |
 | Cmd + , | 显示设置面板 |
 | Cmd + Shift + B | 切换无边框 |
-| Cmd + Ctrl + F | 切换全屏 |
 | Cmd + T | 切换置顶 |
 | Cmd + [ / ] | 上一章 / 下一章 |
 | Cmd + M | 添加书签 |
-| Option + H | 全局显示/隐藏 |
+| Option + H | 全局显隐（系统级热键） |
 | Cmd + Q | 退出 |
 
 ## 项目结构
 
 ```
 Reader-Mac/
-├── ReaderCore/              # C++ 业务核心（跨平台静态库）
-│   ├── include/reader/      # 公共头：types/page/book/utils/...
-│   ├── src/                 # 平台无关实现
-│   ├── platform/macos/      # macOS 专属（NSURLSession 桥等）
-│   ├── third_party/         # cjson/miniz/minizip/libmobi/doctest
-│   ├── tests/               # doctest 单元测试
+├── ReaderCore/              # C++ 业务核心（静态库 libreader_core.a）
+│   ├── include/reader/      # 公共头：page / book / text_book / epub_book / mobi_book / html_parser …
+│   ├── src/                 # 实现
+│   ├── platform/macos/      # macOS 桥（NSURLSession HTTPS 实现）
+│   ├── third_party/         # cjson / miniz / minizip / libmobi / doctest
+│   ├── tests/               # 12 个 doctest 单元测试
 │   └── CMakeLists.txt
 ├── ReaderApp/               # macOS 应用（ObjC++ + AppKit + Core Text）
-│   ├── src/                 # AppDelegate / ReaderCanvasView / Preferences …
-│   └── Resources/Info.plist
-├── ReaderCli/               # 命令行 smoke test（无 UI 验证业务核心）
+│   ├── src/                 # AppDelegate / ReaderCanvasView / Preferences / KeyBindings / OnlineBookmarket …
+│   └── Resources/           # Info.plist / AppIcon / bs.json（书源配置）
+├── ReaderCli/               # 命令行 smoke test
 ├── scripts/
-│   └── make_dmg.sh          # 一键打包 DMG
+│   └── make_dmg.sh          # 一键打包 DMG（universal）
 └── dist/
-    └── cask/reader-mac.rb   # Homebrew Cask 模板
+    └── cask/moyushutan.rb   # Homebrew Cask 模板
 ```
 
-## 架构亮点
+## 架构
 
-- **业务核心 100% 跨平台**：Page 分页引擎、Book 系列、HtmlParser、Utils 完全脱离 GDI，
-  通过 `ITextMetrics` 接口注入文字测量实现
-- **依赖锐减**：原项目用 libhttps + wolfssl，本项目改用 NSURLSession + Apple SecureTransport，
-  zlib + libxml2 走 macOS SDK 自带版本
-- **可移植性**：CLI demo 可在任何 POSIX 平台运行，验证业务核心独立可用
+```
+┌───────────────────────────────────────────────────────────┐
+│ ReaderApp（ObjC++ + AppKit + Core Text）                  │
+│   ├ ReaderCanvasView   Core Text 直接绘制（无 WebView）   │
+│   ├ CoreTextMetrics    ITextMetrics 实现 → 给 Page 用     │
+│   ├ KeyBindings        快捷键持久化 + 即时生效            │
+│   ├ GlobalHotkey       Carbon RegisterEventHotKey         │
+│   └ OnlineBookmarket   书源管理 + 整本并发下载            │
+└───────────┬───────────────────────────────────────────────┘
+            ↓
+┌───────────────────────────────────────────────────────────┐
+│ ReaderCore（C++ 业务核心，跨平台静态库）                  │
+│   ├ Page                分页 / 翻页 / 章节定位            │
+│   ├ TextBook            .txt + 智能章节识别               │
+│   ├ EpubBook            EPUB 解析（minizip + libxml2）    │
+│   ├ MobiBook            MOBI/AZW 解析（libmobi）          │
+│   ├ HtmlParser          libxml2 + XPath（在线书源解析）   │
+│   └ Utils               UTF8/16/32 互转 / iconv / base64  │
+└───────────────────────────────────────────────────────────┘
+```
+
+- **业务核心 100% C++ 跨平台**：Page 分页引擎、Book 系列、HtmlParser、Utils 全部脱离任何 UI 框架，通过 `ITextMetrics` 接口注入文字测量实现
+- **macOS 桥极薄**：仅 `CoreTextMetrics`（接 Core Text）+ `https_nsurl.mm`（接 NSURLSession）
+- **零第三方 UI 依赖**：纯 AppKit，无 WebView、无 Electron
+
+## 开发
+
+```bash
+# 配置（推荐 Release，arm64 + x86_64 一次构出）
+cmake -S ReaderCore -B build -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
+
+# 编译全部
+cmake --build build -j
+
+# 仅业务核心 + 单测
+cmake --build build --target reader_core_tests -j
+./build/reader_core_tests   # 12 用例，全绿
+
+# CLI smoke test（不开 UI 验证业务核心）
+./build/ReaderCli/reader_cli /path/to/book.txt
+```
+
+## 在线书源（bs.json）
+
+书源以 JSON 配置形式定义在 `ReaderApp/Resources/bs.json`，每个源指定搜索接口、XPath 字段、目录页 URL 变换等：
+
+```json
+{
+  "title":              "笔趣阁",
+  "host":               "https://www.biquge365.net",
+  "query_url":          "https://www.biquge365.net/s.php",
+  "query_method":       1,
+  "query_params":       "type=articlename&s=%s",
+  "query_charset":      1,
+  "book_name_xpath":    "//span[@class='name']/a",
+  "book_mainpage_xpath":"//span[@class='name']/a/@href",
+  "book_author_xpath":  "//span[@class='zuo']/a",
+  "chapter_list_url_from": "/book/",
+  "chapter_list_url_to":   "/newbook/",
+  "chapter_title_xpath":   "//ul[@class='info']/li/a[starts-with(@href,'/chapter/')]",
+  "chapter_url_xpath":     "//ul[@class='info']/li/a[starts-with(@href,'/chapter/')]/@href",
+  "content_xpath":         "//div[@id='txt']/text()"
+}
+```
+
+要扩展新源：
+
+1. 在浏览器对目标站抓搜索结果 / 书页 / 目录页 / 正文页 HTML
+2. 写出对应 XPath（任意元素 → 右键 → Copy → Copy XPath）
+3. 追加到 `book_sources` 数组
+4. 验证：搜索可拿结果，目录页要能列出**全本**章节（不能只列最新 N 章）
+
+> ⚠️ **加新源的关键检查**：站点必须提供完整目录页。只露最新 12–20 章的源会下载残本，请直接放弃或实现 next-chain 爬虫。
 
 ## 测试
 
 ```bash
-# 单元测试（12 用例覆盖 UTF8/16 互转 / base64 / url / BOM / XPath / 分页）
 cmake --build build --target reader_core_tests -j
 ./build/reader_core_tests
-
-# 命令行 smoke test
-./build/ReaderCli/reader_cli /path/to/book.txt
 ```
+
+12 个用例覆盖：UTF8 / UTF16 / UTF32 互转、base64、URL 编码、UTF-8 BOM 识别、XPath 解析、分页排版。
 
 ## License
 
-继承上游 [binbyu/Reader](https://github.com/binbyu/Reader) 项目协议。
+本项目开源，可自由使用、修改、分发。
 
-## 移植说明
-
-详见 commit 历史。关键里程碑：
-
-- 第三方依赖 macOS 编译通过（8 库锐减为 4 + 系统库 2）
-- ITextMetrics / IBookListener 接口抽象
-- Page 引擎 1614 行去 GDI 化
-- DecodeText 处理 macOS wchar_t = 4 字节与 Win UTF-16 互转
-- NSURLSession 替代 libhttps + wolfssl
-- ObjC++ 桥 + Core Text 渲染
-- DMG 打包 + Homebrew Cask 模板
+部分第三方依赖各自遵守其上游许可：
+- libmobi (LGPL 3.0)
+- minizip (zlib license)
+- miniz (MIT)
+- doctest (MIT)
+- libxml2、iconv、zlib 走系统 SDK 自带版本

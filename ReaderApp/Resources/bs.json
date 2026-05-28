@@ -1,3 +1,25 @@
 {
-    "book_sources": []
+    "_note_": "目前内置：笔趣阁（biquge365）。要扩展请确保新源能提供 *完整目录页*，否则下载的是残本。书包网（bookbao9）只露最新 12 章已临时移除。",
+    "book_sources": [
+        {
+            "title": "笔趣阁",
+            "host": "https://www.biquge365.net",
+            "query_url": "https://www.biquge365.net/s.php",
+            "query_method": 1,
+            "query_params": "type=articlename&s=%s",
+            "query_charset": 1,
+            "book_name_xpath": "//span[@class='name']/a",
+            "book_mainpage_xpath": "//span[@class='name']/a/@href",
+            "book_author_xpath": "//span[@class='zuo']/a",
+            "chapter_list_url_from": "/book/",
+            "chapter_list_url_to":   "/newbook/",
+            "chapter_title_xpath": "//ul[@class='info']/li/a[starts-with(@href,'/chapter/')]",
+            "chapter_url_xpath":   "//ul[@class='info']/li/a[starts-with(@href,'/chapter/')]/@href",
+            "content_xpath": "//div[@id='txt']/text()",
+            "enable_content_next": 0,
+            "content_next_url_xpath": "",
+            "content_next_keyword_xpath": "",
+            "content_next_keyword": ""
+        }
+    ]
 }

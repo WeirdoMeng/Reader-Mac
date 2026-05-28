@@ -45,7 +45,13 @@ target_link_libraries(ReaderMac PRIVATE
 # Rename the .app bundle to "摸鱼书摊.app" after build, so the Dock tooltip
 # and Finder display name match. Keeps the inner binary as ReaderMac
 # (matches CFBundleExecutable for ASCII-safety).
-add_custom_command(TARGET ReaderMac POST_BUILD
+#
+# CMake 把"资源拷贝"也实现成 POST_BUILD command，且在我们的 rename 之后才执行；
+# 直接 rename 会导致资源被拷到刚被清空的 ReaderMac.app 里、最终的 摸鱼书摊.app
+# 缺少 Resources。改用独立 custom_target 依赖 ReaderMac，target 内的 command
+# 会在 ReaderMac 的全部 POST_BUILD 完成后才执行，保证资源已就位。
+add_custom_target(MoyuShutanBundle ALL
+    DEPENDS ReaderMac
     COMMAND ${CMAKE_COMMAND} -E rm -rf "${CMAKE_CURRENT_BINARY_DIR}/摸鱼书摊.app"
     COMMAND ${CMAKE_COMMAND} -E rename
             "${CMAKE_CURRENT_BINARY_DIR}/ReaderMac.app"

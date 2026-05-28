@@ -3,7 +3,6 @@
 #import "reader/html_parser.h"
 
 #import <Foundation/Foundation.h>
-#import <objc/runtime.h>
 
 // =========================================================================
 //                               BookSource
@@ -13,18 +12,20 @@
 
 + (instancetype)fromDict:(NSDictionary*)d {
     BookSource* s = [[BookSource alloc] init];
-    s.title             = d[@"title"];
-    s.host              = d[@"host"];
-    s.queryUrl          = d[@"query_url"];
-    s.queryMethod       = [d[@"query_method"]   intValue];
-    s.queryParams       = d[@"query_params"];
-    s.queryCharset      = [d[@"query_charset"]  intValue];
-    s.bookNameXpath     = d[@"book_name_xpath"];
-    s.bookMainpageXpath = d[@"book_mainpage_xpath"];
-    s.bookAuthorXpath   = d[@"book_author_xpath"];
-    s.chapterTitleXpath = d[@"chapter_title_xpath"];
-    s.chapterUrlXpath   = d[@"chapter_url_xpath"];
-    s.contentXpath      = d[@"content_xpath"];
+    s.title              = d[@"title"];
+    s.host               = d[@"host"];
+    s.queryUrl           = d[@"query_url"];
+    s.queryMethod        = [d[@"query_method"]   intValue];
+    s.queryParams        = d[@"query_params"];
+    s.queryCharset       = [d[@"query_charset"]  intValue];
+    s.bookNameXpath      = d[@"book_name_xpath"];
+    s.bookMainpageXpath  = d[@"book_mainpage_xpath"];
+    s.bookAuthorXpath    = d[@"book_author_xpath"];
+    s.chapterListUrlFrom = d[@"chapter_list_url_from"];
+    s.chapterListUrlTo   = d[@"chapter_list_url_to"];
+    s.chapterTitleXpath  = d[@"chapter_title_xpath"];
+    s.chapterUrlXpath    = d[@"chapter_url_xpath"];
+    s.contentXpath       = d[@"content_xpath"];
     s.enableContentNext       = [d[@"enable_content_next"] intValue];
     s.contentNextUrlXpath     = d[@"content_next_url_xpath"];
     s.contentNextKeywordXpath = d[@"content_next_keyword_xpath"];
@@ -32,134 +33,26 @@
     return s;
 }
 
-- (NSDictionary*)toDict {
-    return @{
-        @"title": self.title ?: @"",
-        @"host": self.host ?: @"",
-        @"query_url": self.queryUrl ?: @"",
-        @"query_method": @(self.queryMethod),
-        @"query_params": self.queryParams ?: @"",
-        @"query_charset": @(self.queryCharset),
-        @"book_name_xpath":     self.bookNameXpath ?: @"",
-        @"book_mainpage_xpath": self.bookMainpageXpath ?: @"",
-        @"book_author_xpath":   self.bookAuthorXpath ?: @"",
-        @"chapter_title_xpath": self.chapterTitleXpath ?: @"",
-        @"chapter_url_xpath":   self.chapterUrlXpath ?: @"",
-        @"content_xpath":       self.contentXpath ?: @"",
-        @"enable_content_next":       @(self.enableContentNext),
-        @"content_next_url_xpath":     self.contentNextUrlXpath ?: @"",
-        @"content_next_keyword_xpath": self.contentNextKeywordXpath ?: @"",
-        @"content_next_keyword":       self.contentNextKeyword ?: @"",
-    };
-}
-
-+ (NSArray<BookSource*>*)bundled {
-    return [BookSourceStore.shared all];
-}
-@end
-
-// =========================================================================
-//                           BookSourceStore
-// =========================================================================
-//
-// 数据合并：先读 bundle 自带 bs.json（默认源，可能为空），
-// 然后追加 NSUserDefaults 里用户自定义的源。
-// 增删改只影响用户自定义集合，写回 NSUserDefaults。
-
-static NSString* const kUserSourcesKey = @"customBookSources";
-
-@interface BookSourceStore ()
-@property (strong) NSMutableArray<BookSource*>* sources;
-@end
-
-@implementation BookSourceStore
-
-+ (instancetype)shared {
-    static BookSourceStore* s = nil;
++ (NSArray<BookSource*>*)allSources {
+    static NSArray<BookSource*>* cached = nil;
     static dispatch_once_t once;
-    dispatch_once(&once, ^{ s = [[BookSourceStore alloc] init]; });
-    return s;
-}
-
-- (instancetype)init {
-    if ((self = [super init])) {
-        _sources = [NSMutableArray array];
-        [self reload];
-    }
-    return self;
-}
-
-- (void)reload {
-    [self.sources removeAllObjects];
-    // bundle 默认
-    NSString* path = [NSBundle.mainBundle pathForResource:@"bs" ofType:@"json"];
-    if (path) {
-        NSData* d = [NSData dataWithContentsOfFile:path];
-        if (d) {
-            NSDictionary* j = [NSJSONSerialization JSONObjectWithData:d options:0 error:nil];
-            for (NSDictionary* item in (NSArray*)j[@"book_sources"]) {
-                [self.sources addObject:[BookSource fromDict:item]];
+    dispatch_once(&once, ^{
+        NSMutableArray* arr = [NSMutableArray array];
+        NSString* path = [NSBundle.mainBundle pathForResource:@"bs" ofType:@"json"];
+        if (path) {
+            NSData* d = [NSData dataWithContentsOfFile:path];
+            if (d) {
+                NSDictionary* j = [NSJSONSerialization JSONObjectWithData:d
+                                                                  options:0 error:nil];
+                for (NSDictionary* item in (NSArray*)j[@"book_sources"]) {
+                    [arr addObject:[BookSource fromDict:item]];
+                }
             }
         }
-    }
-    // 用户自定义
-    NSArray* arr = [NSUserDefaults.standardUserDefaults arrayForKey:kUserSourcesKey];
-    for (NSDictionary* item in arr) {
-        [self.sources addObject:[BookSource fromDict:item]];
-    }
+        cached = [arr copy];
+    });
+    return cached;
 }
-
-- (NSArray<BookSource*>*)all { return [self.sources copy]; }
-
-- (void)persistUserSources {
-    // 跳过 bundle 默认源（前 N 条）
-    NSString* path = [NSBundle.mainBundle pathForResource:@"bs" ofType:@"json"];
-    NSInteger bundledN = 0;
-    if (path) {
-        NSData* d = [NSData dataWithContentsOfFile:path];
-        if (d) {
-            NSDictionary* j = [NSJSONSerialization JSONObjectWithData:d options:0 error:nil];
-            bundledN = [(NSArray*)j[@"book_sources"] count];
-        }
-    }
-    NSMutableArray* out = [NSMutableArray array];
-    for (NSInteger i = bundledN; i < (NSInteger)self.sources.count; ++i) {
-        [out addObject:[self.sources[i] toDict]];
-    }
-    [NSUserDefaults.standardUserDefaults setObject:out forKey:kUserSourcesKey];
-}
-
-- (void)addSource:(BookSource*)s {
-    [self.sources addObject:s];
-    [self persistUserSources];
-}
-- (void)updateAtIndex:(NSInteger)i with:(BookSource*)s {
-    if (i < 0 || i >= (NSInteger)self.sources.count) return;
-    self.sources[i] = s;
-    [self persistUserSources];
-}
-- (void)removeAtIndex:(NSInteger)i {
-    if (i < 0 || i >= (NSInteger)self.sources.count) return;
-    [self.sources removeObjectAtIndex:i];
-    [self persistUserSources];
-}
-
-- (BOOL)importFromFile:(NSString*)filePath replaceAll:(BOOL)replace {
-    NSData* d = [NSData dataWithContentsOfFile:filePath];
-    if (!d) return NO;
-    NSDictionary* j = [NSJSONSerialization JSONObjectWithData:d options:0 error:nil];
-    NSArray* arr = j[@"book_sources"];
-    if (!arr) return NO;
-    if (replace) {
-        [self.sources removeAllObjects];
-    }
-    for (NSDictionary* item in arr) {
-        [self.sources addObject:[BookSource fromDict:item]];
-    }
-    [self persistUserSources];
-    return YES;
-}
-
 @end
 
 // =========================================================================
@@ -173,9 +66,7 @@ static NSString* gbkOrUtf8Decode(NSData* data, int charset) {
         enc = CFStringConvertEncodingToNSStringEncoding(kCFStringEncodingGB_18030_2000);
     }
     NSString* s = [[NSString alloc] initWithData:data encoding:enc];
-    if (!s) {  // try fallback
-        s = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
-    }
+    if (!s) s = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
     return s ?: @"";
 }
 
@@ -203,7 +94,6 @@ static NSString* gbkOrUtf8UrlEncode(NSString* keyword, int charset) {
             [NSCharacterSet URLQueryAllowedCharacterSet]] ?: @"";
 }
 
-// 把抓到的相对/绝对/协议相对 URL 转成完整 URL
 static NSString* absolutize(NSString* href, NSString* base) {
     if (href.length == 0) return @"";
     if ([href hasPrefix:@"http://"] || [href hasPrefix:@"https://"]) return href;
@@ -216,12 +106,10 @@ static NSString* absolutize(NSString* href, NSString* base) {
         return [NSString stringWithFormat:@"%@://%@%@",
                 baseUrl.scheme, baseUrl.host, href];
     }
-    // 相对路径：在 base 的目录下
     NSURL* combined = [NSURL URLWithString:href relativeToURL:baseUrl];
     return combined.absoluteString ?: @"";
 }
 
-// 用 HtmlParser 抽取 XPath 结果（一行 char_array）
 static NSArray<NSString*>* xpathAll(NSString* html, NSString* xpath) {
     if (html.length == 0 || xpath.length == 0) return @[];
     NSData* d = [html dataUsingEncoding:NSUTF8StringEncoding];
@@ -237,72 +125,169 @@ static NSArray<NSString*>* xpathAll(NSString* html, NSString* xpath) {
     return res;
 }
 
-// 发请求
-static void fetchURL(NSString* urlString, int charset,
+static NSString* cleanHtmlText(NSString* s) {
+    NSMutableString* m = [s mutableCopy];
+    [m replaceOccurrencesOfString:@"&nbsp;" withString:@" "
+                          options:0 range:NSMakeRange(0, m.length)];
+    [m replaceOccurrencesOfString:@"&amp;" withString:@"&"
+                          options:0 range:NSMakeRange(0, m.length)];
+    [m replaceOccurrencesOfString:@"&lt;" withString:@"<"
+                          options:0 range:NSMakeRange(0, m.length)];
+    [m replaceOccurrencesOfString:@"&gt;" withString:@">"
+                          options:0 range:NSMakeRange(0, m.length)];
+    return [m stringByTrimmingCharactersInSet:
+            [NSCharacterSet whitespaceAndNewlineCharacterSet]] ?: @"";
+}
+
+// HTTP 请求（支持 GET / POST，自动按 charset 解码，completion 投递到主队列）
+static void fetchURL(NSString* urlString,
+                     NSString* postBody,
+                     int charset,
                      void (^cb)(NSString* body, NSError* err)) {
     NSURL* u = [NSURL URLWithString:urlString];
-    if (!u) { cb(nil, [NSError errorWithDomain:@"online" code:1 userInfo:nil]); return; }
+    if (!u) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            cb(nil, [NSError errorWithDomain:@"online" code:1 userInfo:nil]);
+        });
+        return;
+    }
     NSMutableURLRequest* req = [NSMutableURLRequest requestWithURL:u];
-    req.timeoutInterval = 15.0;
-    // 伪装一下 UA 提高存活率
+    req.timeoutInterval = 20.0;
     [req setValue:@"Mozilla/5.0 (Macintosh; Intel Mac OS X 13_0) "
                   @"AppleWebKit/605.1.15 (KHTML, like Gecko) "
                   @"Version/16.0 Safari/605.1.15"
        forHTTPHeaderField:@"User-Agent"];
-
+    if (postBody.length > 0) {
+        req.HTTPMethod = @"POST";
+        [req setValue:@"application/x-www-form-urlencoded"
+           forHTTPHeaderField:@"Content-Type"];
+        req.HTTPBody = [postBody dataUsingEncoding:NSUTF8StringEncoding];
+    }
     NSURLSessionDataTask* t =
     [NSURLSession.sharedSession dataTaskWithRequest:req
                                    completionHandler:^(NSData* data,
                                                        NSURLResponse* resp,
                                                        NSError* err) {
-        if (err) { dispatch_async(dispatch_get_main_queue(), ^{ cb(nil, err); }); return; }
+        if (err) {
+            dispatch_async(dispatch_get_main_queue(), ^{ cb(nil, err); });
+            return;
+        }
         NSString* body = gbkOrUtf8Decode(data, charset);
         dispatch_async(dispatch_get_main_queue(), ^{ cb(body, nil); });
     }];
     [t resume];
 }
 
+// 递归抓取一页内容；如果 enable_content_next 且找到下一页链接，继续抓拼接
+static void fetchChapterPageRecursive(NSString* url, BookSource* src,
+                                       NSMutableString* full, int pn,
+                                       void (^onDone)(void)) {
+    if (pn > 20) { if (onDone) onDone(); return; }
+    fetchURL(url, nil, src.queryCharset, ^(NSString* body, NSError* err) {
+        if (err || body.length == 0) { if (onDone) onDone(); return; }
+        NSArray<NSString*>* paras = xpathAll(body, src.contentXpath);
+        for (NSString* p in paras) {
+            NSString* line = cleanHtmlText(p);
+            if (line.length > 0) [full appendFormat:@"    %@\n", line];
+        }
+        if (src.enableContentNext &&
+            src.contentNextUrlXpath.length > 0 &&
+            src.contentNextKeyword.length > 0) {
+            NSArray<NSString*>* nextKeywords = src.contentNextKeywordXpath.length > 0
+                ? xpathAll(body, src.contentNextKeywordXpath) : @[];
+            NSArray<NSString*>* nextUrls = xpathAll(body, src.contentNextUrlXpath);
+            BOOL match = NO;
+            for (NSString* k in nextKeywords) {
+                NSString* tk = [k stringByTrimmingCharactersInSet:
+                                [NSCharacterSet whitespaceAndNewlineCharacterSet]];
+                if ([tk rangeOfString:src.contentNextKeyword].location != NSNotFound) {
+                    match = YES; break;
+                }
+            }
+            if (match && nextUrls.count > 0) {
+                NSString* next = absolutize(nextUrls.firstObject, url);
+                if (next.length > 0 && ![next isEqualToString:url]) {
+                    fetchChapterPageRecursive(next, src, full, pn + 1, onDone);
+                    return;
+                }
+            }
+        }
+        if (onDone) onDone();
+    });
+}
+
+// =========================================================================
+//   整本书本地路径
+// =========================================================================
+
+static NSString* fullBookLocalPath(NSString* bookTitle) {
+    NSArray* paths = NSSearchPathForDirectoriesInDomains(
+        NSApplicationSupportDirectory, NSUserDomainMask, YES);
+    NSString* base = [paths.firstObject stringByAppendingPathComponent:
+                      @"MoyuShutan/books"];
+    [NSFileManager.defaultManager createDirectoryAtPath:base
+                            withIntermediateDirectories:YES
+                                             attributes:nil error:nil];
+    NSCharacterSet* bad = [NSCharacterSet characterSetWithCharactersInString:@"/\\:*?\"<>|"];
+    NSString* safe = [[bookTitle componentsSeparatedByCharactersInSet:bad]
+                         componentsJoinedByString:@"_"];
+    return [base stringByAppendingPathComponent:
+            [NSString stringWithFormat:@"%@.txt", safe ?: @"unknown"]];
+}
+
+// =========================================================================
+//                       OnlineBookmarketMeta
+// =========================================================================
+
+@implementation OnlineBookmarketMeta
+
++ (BOOL)isOnlineBookPath:(NSString*)path {
+    if (path.length == 0) return NO;
+    return [path containsString:@"/MoyuShutan/books/"];
+}
+
++ (NSString*)bookTitleFromPath:(NSString*)path {
+    if (![self isOnlineBookPath:path]) return nil;
+    return path.lastPathComponent.stringByDeletingPathExtension;
+}
+@end
+
 // =========================================================================
 //                    OnlineBookmarketWindowController
 // =========================================================================
 
-typedef NS_ENUM(NSInteger, OBState) {
-    OBStateSearch = 0,
-    OBStateChapters,
-};
-
 @interface OnlineBookmarketWindowController () <NSTableViewDataSource,
                                                 NSTableViewDelegate>
 @property (weak)   ReaderCanvasView* canvas;
-@property (strong) NSArray<BookSource*>* sources;
-@property (assign) NSInteger        selectedSourceIndex;
-@property (assign) OBState          state;
-// 搜索结果：[{title, url, author}]
+
+// 搜索结果（聚合多源）：[{title, url, author, source(BookSource*)}]
 @property (strong) NSMutableArray<NSDictionary*>* searchResults;
-// 章节列表：[{title, url}]
-@property (strong) NSMutableArray<NSDictionary*>* chapterList;
-@property (copy)   NSString*        currentBookTitle;
+
+// 全源搜索状态
+@property (assign) NSInteger        searchInFlight;
+@property (copy)   NSString*        searchKeyword;
+
+// 当前下载任务
+@property (assign) BOOL             downloading;
+@property (assign) BOOL             cancelled;
+@property (assign) NSInteger        dlCompleted;
+@property (assign) NSInteger        dlTotal;
+@property (copy)   NSString*        dlBookTitle;
+@property (strong) NSMutableArray*  dlSlots;  // 章节正文 slot 数组
 
 // UI
-@property (strong) NSPopUpButton*  sourcePopup;
-@property (strong) NSTextField*    keywordField;
-@property (strong) NSButton*       searchButton;
-@property (strong) NSButton*       manageButton;
-@property (strong) NSButton*       backButton;
-@property (strong) NSTextField*    statusLabel;
-@property (strong) NSTableView*    table;
-// 书源管理
-@property (strong) NSWindow*       managerWindow;
-@property (strong) NSWindow*       managerOwnedWindow;
-@property (strong) NSTableView*    managerTable;
-- (NSObject*)makeDataSourceForSources:(NSMutableArray<BookSource*>* (^)(void))loader
-                                table:(NSTableView*)tbl;
+@property (strong) NSTextField*       keywordField;
+@property (strong) NSButton*          searchButton;
+@property (strong) NSTextField*       statusLabel;
+@property (strong) NSProgressIndicator* progressBar;
+@property (strong) NSButton*          cancelButton;
+@property (strong) NSTableView*       table;
 @end
 
 @implementation OnlineBookmarketWindowController
 
 - (instancetype)initWithCanvas:(ReaderCanvasView*)canvas {
-    NSRect frame = NSMakeRect(0, 0, 620, 480);
+    NSRect frame = NSMakeRect(0, 0, 720, 520);
     NSWindow* w = [[NSWindow alloc] initWithContentRect:frame
                                               styleMask:(NSWindowStyleMaskTitled
                                                          | NSWindowStyleMaskClosable
@@ -310,17 +295,12 @@ typedef NS_ENUM(NSInteger, OBState) {
                                                 backing:NSBackingStoreBuffered
                                                   defer:NO];
     w.title = @"在线小说";
-    [w setContentMinSize:NSMakeSize(520, 360)];
+    [w setContentMinSize:NSMakeSize(600, 420)];
     self = [super initWithWindow:w];
     if (self) {
         _canvas = canvas;
-        _sources = [BookSource bundled];
-        _selectedSourceIndex = 0;
         _searchResults = [NSMutableArray array];
-        _chapterList   = [NSMutableArray array];
-        _state = OBStateSearch;
         [self buildUI];
-        [self refreshSourcesPopup];
     }
     return self;
 }
@@ -328,14 +308,9 @@ typedef NS_ENUM(NSInteger, OBState) {
 - (void)buildUI {
     NSView* root = self.window.contentView;
 
-    self.sourcePopup = [[NSPopUpButton alloc] init];
-    self.sourcePopup.translatesAutoresizingMaskIntoConstraints = NO;
-    self.sourcePopup.target = self;
-    self.sourcePopup.action = @selector(sourceChanged:);
-    [root addSubview:self.sourcePopup];
-
     self.keywordField = [[NSTextField alloc] init];
-    self.keywordField.placeholderString = @"输入书名关键词，回车搜索";
+    self.keywordField.placeholderString = @"输入书名或作者，回车搜索";
+    self.keywordField.font = [NSFont systemFontOfSize:14];
     self.keywordField.translatesAutoresizingMaskIntoConstraints = NO;
     self.keywordField.target = self;
     self.keywordField.action = @selector(performSearch:);
@@ -345,26 +320,11 @@ typedef NS_ENUM(NSInteger, OBState) {
                                              target:self
                                              action:@selector(performSearch:)];
     self.searchButton.bezelStyle = NSBezelStyleRounded;
+    self.searchButton.keyEquivalent = @"\r";
     self.searchButton.translatesAutoresizingMaskIntoConstraints = NO;
     [root addSubview:self.searchButton];
 
-    NSButton* manageBtn = [NSButton buttonWithTitle:@"管理书源…"
-                                                target:self
-                                                action:@selector(showSourceManager:)];
-    manageBtn.bezelStyle = NSBezelStyleRounded;
-    manageBtn.translatesAutoresizingMaskIntoConstraints = NO;
-    [root addSubview:manageBtn];
-    self.manageButton = manageBtn;
-
-    self.backButton = [NSButton buttonWithTitle:@"← 搜索结果"
-                                           target:self
-                                           action:@selector(backToSearch:)];
-    self.backButton.bezelStyle = NSBezelStyleRounded;
-    self.backButton.hidden = YES;
-    self.backButton.translatesAutoresizingMaskIntoConstraints = NO;
-    [root addSubview:self.backButton];
-
-    self.statusLabel = [NSTextField labelWithString:@"选源 → 输入关键词 → 回车搜索"];
+    self.statusLabel = [NSTextField labelWithString:@"输入书名或作者后回车搜索"];
     self.statusLabel.font = [NSFont systemFontOfSize:11];
     self.statusLabel.textColor = [NSColor secondaryLabelColor];
     self.statusLabel.translatesAutoresizingMaskIntoConstraints = NO;
@@ -384,124 +344,145 @@ typedef NS_ENUM(NSInteger, OBState) {
     self.table.target = self;
 
     NSTableColumn* c1 = [[NSTableColumn alloc] initWithIdentifier:@"col1"];
-    c1.title = @"书名 / 章节标题"; c1.width = 360;
+    c1.title = @"书名"; c1.width = 480; c1.minWidth = 240;
     [self.table addTableColumn:c1];
     NSTableColumn* c2 = [[NSTableColumn alloc] initWithIdentifier:@"col2"];
-    c2.title = @"作者 / 链接"; c2.width = 220;
+    c2.title = @"作者"; c2.width = 200; c2.minWidth = 100;
     [self.table addTableColumn:c2];
     sv.documentView = self.table;
     [root addSubview:sv];
 
+    // 进度条 + 取消（下载时显示）
+    self.progressBar = [[NSProgressIndicator alloc] init];
+    self.progressBar.translatesAutoresizingMaskIntoConstraints = NO;
+    self.progressBar.style = NSProgressIndicatorStyleBar;
+    self.progressBar.indeterminate = NO;
+    self.progressBar.hidden = YES;
+    [root addSubview:self.progressBar];
+
+    self.cancelButton = [NSButton buttonWithTitle:@"取消下载"
+                                             target:self
+                                             action:@selector(cancelDownload:)];
+    self.cancelButton.bezelStyle = NSBezelStyleRounded;
+    self.cancelButton.translatesAutoresizingMaskIntoConstraints = NO;
+    self.cancelButton.hidden = YES;
+    [root addSubview:self.cancelButton];
+
+    // 用 LayoutGuide 让"取消按钮"垂直居中于 statusLabel + progressBar 整个 block
+    NSLayoutGuide* dlGuide = [[NSLayoutGuide alloc] init];
+    [root addLayoutGuide:dlGuide];
+
     [NSLayoutConstraint activateConstraints:@[
-        // 顶部一行
-        [self.sourcePopup.topAnchor      constraintEqualToAnchor:root.topAnchor constant:14],
-        [self.sourcePopup.leadingAnchor  constraintEqualToAnchor:root.leadingAnchor constant:14],
-        [self.sourcePopup.widthAnchor    constraintEqualToConstant:180],
-        [self.keywordField.centerYAnchor constraintEqualToAnchor:self.sourcePopup.centerYAnchor],
-        [self.keywordField.leadingAnchor constraintEqualToAnchor:self.sourcePopup.trailingAnchor constant:10],
+        // 顶部
+        [self.keywordField.topAnchor      constraintEqualToAnchor:root.topAnchor constant:14],
+        [self.keywordField.leadingAnchor  constraintEqualToAnchor:root.leadingAnchor constant:14],
+        [self.keywordField.heightAnchor   constraintEqualToConstant:28],
         [self.keywordField.trailingAnchor constraintEqualToAnchor:self.searchButton.leadingAnchor constant:-8],
-        [self.searchButton.centerYAnchor constraintEqualToAnchor:self.sourcePopup.centerYAnchor],
-        [self.searchButton.trailingAnchor constraintEqualToAnchor:self.manageButton.leadingAnchor constant:-8],
-        [self.manageButton.centerYAnchor constraintEqualToAnchor:self.sourcePopup.centerYAnchor],
-        [self.manageButton.trailingAnchor constraintEqualToAnchor:root.trailingAnchor constant:-14],
+        [self.searchButton.centerYAnchor  constraintEqualToAnchor:self.keywordField.centerYAnchor],
+        [self.searchButton.trailingAnchor constraintEqualToAnchor:root.trailingAnchor constant:-14],
+        [self.searchButton.widthAnchor    constraintEqualToConstant:80],
 
-        // 状态行
-        [self.backButton.topAnchor      constraintEqualToAnchor:self.sourcePopup.bottomAnchor constant:10],
-        [self.backButton.leadingAnchor  constraintEqualToAnchor:root.leadingAnchor constant:14],
-        [self.statusLabel.centerYAnchor constraintEqualToAnchor:self.backButton.centerYAnchor],
-        [self.statusLabel.leadingAnchor constraintEqualToAnchor:self.backButton.trailingAnchor constant:10],
-        [self.statusLabel.trailingAnchor constraintLessThanOrEqualToAnchor:root.trailingAnchor constant:-14],
+        // 状态文字（左上）
+        [self.statusLabel.topAnchor      constraintEqualToAnchor:self.keywordField.bottomAnchor constant:10],
+        [self.statusLabel.leadingAnchor  constraintEqualToAnchor:root.leadingAnchor constant:14],
+        [self.statusLabel.trailingAnchor constraintLessThanOrEqualToAnchor:self.cancelButton.leadingAnchor constant:-12],
 
-        // 表格撑满下方
-        [sv.topAnchor     constraintEqualToAnchor:self.backButton.bottomAnchor constant:10],
-        [sv.leadingAnchor constraintEqualToAnchor:root.leadingAnchor  constant:14],
+        // 进度条（状态下方，左侧到 cancel 之间）
+        [self.progressBar.topAnchor      constraintEqualToAnchor:self.statusLabel.bottomAnchor constant:5],
+        [self.progressBar.leadingAnchor  constraintEqualToAnchor:root.leadingAnchor constant:14],
+        [self.progressBar.trailingAnchor constraintEqualToAnchor:self.cancelButton.leadingAnchor constant:-12],
+        [self.progressBar.heightAnchor   constraintEqualToConstant:8],
+
+        // Guide 包裹 status + progress
+        [dlGuide.topAnchor    constraintEqualToAnchor:self.statusLabel.topAnchor],
+        [dlGuide.bottomAnchor constraintEqualToAnchor:self.progressBar.bottomAnchor],
+
+        // 取消按钮（垂直居中于 guide）
+        [self.cancelButton.centerYAnchor  constraintEqualToAnchor:dlGuide.centerYAnchor],
+        [self.cancelButton.trailingAnchor constraintEqualToAnchor:root.trailingAnchor constant:-14],
+
+        // 表格
+        [sv.topAnchor      constraintEqualToAnchor:self.progressBar.bottomAnchor constant:10],
+        [sv.leadingAnchor  constraintEqualToAnchor:root.leadingAnchor  constant:14],
         [sv.trailingAnchor constraintEqualToAnchor:root.trailingAnchor constant:-14],
-        [sv.bottomAnchor  constraintEqualToAnchor:root.bottomAnchor constant:-14],
+        [sv.bottomAnchor   constraintEqualToAnchor:root.bottomAnchor constant:-14],
     ]];
 }
 
-#pragma mark - state machine
-
-- (void)setState:(OBState)st {
-    _state = st;
-    if (st == OBStateSearch) {
-        self.backButton.hidden = YES;
-        [self.table.tableColumns[0] setTitle:@"书名"];
-        [self.table.tableColumns[1] setTitle:@"作者"];
-    } else {
-        self.backButton.hidden = NO;
-        [self.table.tableColumns[0] setTitle:[NSString stringWithFormat:@"《%@》章节列表",
-                                              self.currentBookTitle ?: @""]];
-        [self.table.tableColumns[1] setTitle:@"链接"];
-    }
-    [self.table reloadData];
-}
-
-- (void)sourceChanged:(id)sender {
-    self.selectedSourceIndex = self.sourcePopup.indexOfSelectedItem;
-}
-
-- (void)refreshSourcesPopup {
-    [self.sourcePopup removeAllItems];
-    self.sources = [BookSource bundled];
-    if (self.sources.count == 0) {
-        [self.sourcePopup addItemWithTitle:@"（暂无书源，点 管理书源…）"];
-        self.searchButton.enabled = NO;
-        self.keywordField.enabled = NO;
-        self.statusLabel.stringValue = @"点击右上「管理书源…」按钮添加或导入书源";
-    } else {
-        for (BookSource* s in self.sources) [self.sourcePopup addItemWithTitle:s.title ?: @""];
-        self.searchButton.enabled = YES;
-        self.keywordField.enabled = YES;
-        if (self.selectedSourceIndex >= (NSInteger)self.sources.count) {
-            self.selectedSourceIndex = 0;
-        }
-        [self.sourcePopup selectItemAtIndex:self.selectedSourceIndex];
-    }
-}
-
-- (BookSource*)currentSource {
-    if (self.selectedSourceIndex < 0 ||
-        self.selectedSourceIndex >= (NSInteger)self.sources.count) return nil;
-    return self.sources[self.selectedSourceIndex];
-}
-
-#pragma mark - search
+#pragma mark - search（全源并发）
 
 - (void)performSearch:(id)sender {
-    BookSource* src = [self currentSource];
-    NSString* kw = self.keywordField.stringValue;
-    if (!src || kw.length == 0) return;
+    if (self.downloading) return;
+    NSString* kw = [self.keywordField.stringValue
+                    stringByTrimmingCharactersInSet:
+                    [NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    if (kw.length == 0) return;
 
-    self.statusLabel.stringValue = [NSString stringWithFormat:@"正在搜索「%@」…", kw];
+    NSArray<BookSource*>* sources = [BookSource allSources];
+    if (sources.count == 0) {
+        self.statusLabel.stringValue = @"内置书源为空（bs.json 未配置）";
+        return;
+    }
+
+    [self.searchResults removeAllObjects];
+    [self.table reloadData];
+
+    self.searchKeyword = kw;
+    self.searchInFlight = (NSInteger)sources.count;
     self.searchButton.enabled = NO;
+    self.statusLabel.stringValue = [NSString stringWithFormat:
+                                    @"正在搜索「%@」（%lu 个源并发查询）…",
+                                    kw, (unsigned long)sources.count];
 
+    for (BookSource* src in sources) {
+        [self searchOneSource:src keyword:kw];
+    }
+}
+
+- (void)searchOneSource:(BookSource*)src keyword:(NSString*)kw {
     NSString* encKw = gbkOrUtf8UrlEncode(kw, src.queryCharset);
-    NSString* url = [src.queryUrl stringByReplacingOccurrencesOfString:@"%s"
-                                                            withString:encKw];
+    NSString* url = src.queryUrl;
+    NSString* postBody = nil;
+    if (src.queryMethod == 1) {
+        postBody = [src.queryParams stringByReplacingOccurrencesOfString:@"%s"
+                                                              withString:encKw];
+    } else {
+        url = [url stringByReplacingOccurrencesOfString:@"%s" withString:encKw];
+    }
 
-    fetchURL(url, src.queryCharset, ^(NSString* body, NSError* err) {
-        self.searchButton.enabled = YES;
-        if (err || body.length == 0) {
-            self.statusLabel.stringValue = [NSString stringWithFormat:@"搜索失败：%@",
-                                            err.localizedDescription ?: @"无响应"];
-            return;
+    __weak typeof(self) ws = self;
+    fetchURL(url, postBody, src.queryCharset, ^(NSString* body, NSError* err) {
+        __strong typeof(ws) ss = ws;
+        if (!ss) return;
+        if (!err && body.length > 0) {
+            NSArray<NSString*>* names    = xpathAll(body, src.bookNameXpath);
+            NSArray<NSString*>* hrefs    = xpathAll(body, src.bookMainpageXpath);
+            NSArray<NSString*>* authors  = xpathAll(body, src.bookAuthorXpath);
+            NSUInteger n = MIN(names.count, hrefs.count);
+            for (NSUInteger i = 0; i < n; ++i) {
+                NSString* title = [ss trim:names[i]];
+                if (title.length == 0) continue;
+                [ss.searchResults addObject:@{
+                    @"title":  title,
+                    @"url":    absolutize(hrefs[i], url),
+                    @"author": i < authors.count ? [ss trim:authors[i]] : @"",
+                    @"source": src,
+                }];
+            }
+            [ss.table reloadData];
         }
-        NSArray<NSString*>* names    = xpathAll(body, src.bookNameXpath);
-        NSArray<NSString*>* hrefs    = xpathAll(body, src.bookMainpageXpath);
-        NSArray<NSString*>* authors  = xpathAll(body, src.bookAuthorXpath);
-        [self.searchResults removeAllObjects];
-        NSUInteger n = MIN(names.count, hrefs.count);
-        for (NSUInteger i = 0; i < n; ++i) {
-            [self.searchResults addObject:@{
-                @"title":  [self trim:names[i]],
-                @"url":    absolutize(hrefs[i], url),
-                @"author": i < authors.count ? [self trim:authors[i]] : @"",
-            }];
+        ss.searchInFlight--;
+        if (ss.searchInFlight <= 0) {
+            ss.searchButton.enabled = YES;
+            ss.statusLabel.stringValue = [NSString stringWithFormat:
+                @"找到 %lu 条结果，双击下载整本到本地阅读",
+                (unsigned long)ss.searchResults.count];
+        } else {
+            ss.statusLabel.stringValue = [NSString stringWithFormat:
+                @"已收集 %lu 条结果，剩 %ld 个源…",
+                (unsigned long)ss.searchResults.count,
+                (long)ss.searchInFlight];
         }
-        self.state = OBStateSearch;
-        self.statusLabel.stringValue = [NSString stringWithFormat:@"找到 %lu 本，双击进入章节",
-                                        (unsigned long)self.searchResults.count];
     });
 }
 
@@ -510,414 +491,198 @@ typedef NS_ENUM(NSInteger, OBState) {
             [NSCharacterSet whitespaceAndNewlineCharacterSet]] ?: @"";
 }
 
-#pragma mark - chapter list
+#pragma mark - 双击 → 整本下载
 
-- (void)loadChaptersForBookAtIndex:(NSInteger)i {
+- (void)rowDoubleClicked:(id)sender {
+    if (self.downloading) return;
+    NSInteger row = self.table.clickedRow;
+    if (row < 0) return;
+    [self downloadFullBookAtIndex:row];
+}
+
+// 主流程：抓目录页 → 解析章节列表 → 并发下载所有正文 → 拼装写文件 → 打开
+- (void)downloadFullBookAtIndex:(NSInteger)i {
     if (i < 0 || i >= (NSInteger)self.searchResults.count) return;
     NSDictionary* book = self.searchResults[i];
-    BookSource* src = [self currentSource];
-    NSString* url = book[@"url"];
-    self.currentBookTitle = book[@"title"];
-    self.statusLabel.stringValue = [NSString stringWithFormat:@"加载《%@》章节列表…",
-                                    self.currentBookTitle];
-    fetchURL(url, src.queryCharset, ^(NSString* body, NSError* err) {
-        if (err || body.length == 0) {
-            self.statusLabel.stringValue = [NSString stringWithFormat:@"加载失败：%@",
-                                            err.localizedDescription ?: @"无响应"];
-            return;
-        }
-        NSArray<NSString*>* titles = xpathAll(body, src.chapterTitleXpath);
-        NSArray<NSString*>* hrefs  = xpathAll(body, src.chapterUrlXpath);
-        [self.chapterList removeAllObjects];
-        NSUInteger n = MIN(titles.count, hrefs.count);
-        for (NSUInteger k = 0; k < n; ++k) {
-            [self.chapterList addObject:@{
-                @"title": [self trim:titles[k]],
-                @"url":   absolutize(hrefs[k], url),
-            }];
-        }
-        self.state = OBStateChapters;
-        self.statusLabel.stringValue = [NSString stringWithFormat:@"共 %lu 章，双击章节阅读",
-                                        (unsigned long)self.chapterList.count];
-    });
-}
+    BookSource* src = book[@"source"];
+    NSString* bookUrl = book[@"url"];
+    NSString* title = book[@"title"];
 
-- (void)backToSearch:(id)sender {
-    self.state = OBStateSearch;
-    self.statusLabel.stringValue = [NSString stringWithFormat:@"找到 %lu 本",
-                                    (unsigned long)self.searchResults.count];
-}
-
-#pragma mark - content
-
-// ---------- 章节缓存目录 ----------
-static NSString* cachePath(NSString* bookTitle, NSString* chapterTitle) {
-    NSArray* paths = NSSearchPathForDirectoriesInDomains(
-        NSApplicationSupportDirectory, NSUserDomainMask, YES);
-    NSString* base = [paths.firstObject stringByAppendingPathComponent:
-                      @"MoyuShutan/online"];
-    [NSFileManager.defaultManager createDirectoryAtPath:base
-                            withIntermediateDirectories:YES
-                                             attributes:nil error:nil];
-    // 用 path-safe 文件名（去 / 等危险字符）
-    NSCharacterSet* bad = [NSCharacterSet characterSetWithCharactersInString:@"/\\:*?\"<>|"];
-    NSString* safeBook = [[bookTitle componentsSeparatedByCharactersInSet:bad]
-                            componentsJoinedByString:@"_"];
-    NSString* safeCh = [[chapterTitle componentsSeparatedByCharactersInSet:bad]
-                          componentsJoinedByString:@"_"];
-    NSString* dir = [base stringByAppendingPathComponent:safeBook ?: @"unknown"];
-    [NSFileManager.defaultManager createDirectoryAtPath:dir
-                            withIntermediateDirectories:YES
-                                             attributes:nil error:nil];
-    return [dir stringByAppendingPathComponent:
-            [NSString stringWithFormat:@"%@.txt", safeCh ?: @"chapter"]];
-}
-
-- (void)loadContentForChapterAtIndex:(NSInteger)i {
-    if (i < 0 || i >= (NSInteger)self.chapterList.count) return;
-    NSDictionary* ch = self.chapterList[i];
-    BookSource* src = [self currentSource];
-    NSString* url = ch[@"url"];
-    NSString* title = ch[@"title"];
-
-    // 本地缓存命中：直接打开
-    NSString* cached = cachePath(self.currentBookTitle, title);
-    if ([NSFileManager.defaultManager fileExistsAtPath:cached]) {
-        [self.canvas openFileAtPath:cached];
-        self.canvas.window.title = [NSString stringWithFormat:@"%@ - %@",
-                                    self.currentBookTitle ?: @"在线", title];
-        self.statusLabel.stringValue = @"（已从本地缓存载入）";
+    // 缓存命中：直接打开本地
+    NSString* localPath = fullBookLocalPath(title);
+    if ([NSFileManager.defaultManager fileExistsAtPath:localPath]) {
+        [self.canvas openFileAtPath:localPath restoreIndex:0];
+        self.canvas.window.title = title;
         [self.window close];
         return;
     }
 
-    self.statusLabel.stringValue = [NSString stringWithFormat:@"加载章节《%@》…", title];
-    NSMutableString* full = [NSMutableString string];
-    [full appendFormat:@"%@\n\n", title];
-    [self fetchChapterPage:url source:src accumInto:full pageNum:1
-                completion:^{
-        // 写到缓存目录
-        NSMutableData* d = [NSMutableData dataWithBytes:"\xEF\xBB\xBF" length:3];
-        [d appendData:[full dataUsingEncoding:NSUTF8StringEncoding]];
-        [d writeToFile:cached atomically:YES];
+    // 计算目录页 URL
+    NSString* listUrl = bookUrl;
+    if (src.chapterListUrlFrom.length > 0 && src.chapterListUrlTo.length > 0) {
+        listUrl = [bookUrl stringByReplacingOccurrencesOfString:src.chapterListUrlFrom
+                                                     withString:src.chapterListUrlTo];
+    }
 
-        [self.canvas openFileAtPath:cached];
-        self.canvas.window.title = [NSString stringWithFormat:@"%@ - %@",
-                                    self.currentBookTitle ?: @"在线", title];
-        [self.window close];
-    }];
-}
+    self.statusLabel.stringValue = [NSString stringWithFormat:@"正在获取《%@》目录…", title];
+    self.searchButton.enabled = NO;
 
-// 递归抓取一页内容；如果 enable_content_next 且找到下一页链接，继续抓拼接
-- (void)fetchChapterPage:(NSString*)url
-                   source:(BookSource*)src
-                accumInto:(NSMutableString*)full
-                  pageNum:(int)pn
-               completion:(void (^)(void))done {
-    if (pn > 20) { done(); return; }  // 安全上限
-    self.statusLabel.stringValue = [NSString stringWithFormat:@"抓取第 %d 页…", pn];
-    fetchURL(url, src.queryCharset, ^(NSString* body, NSError* err) {
-        if (err || body.length == 0) { done(); return; }
-        NSArray<NSString*>* paras = xpathAll(body, src.contentXpath);
-        for (NSString* p in paras) {
-            NSString* line = [self cleanHtmlText:p];
-            if (line.length > 0) {
-                [full appendFormat:@"    %@\n", line];
-            }
+    __weak typeof(self) ws = self;
+    fetchURL(listUrl, nil, src.queryCharset, ^(NSString* body, NSError* err) {
+        __strong typeof(ws) ss = ws;
+        if (!ss) return;
+        if (err || body.length == 0) {
+            ss.statusLabel.stringValue = [NSString stringWithFormat:@"目录加载失败：%@",
+                                          err.localizedDescription ?: @"无响应"];
+            ss.searchButton.enabled = YES;
+            return;
         }
-        if (src.enableContentNext &&
-            src.contentNextUrlXpath.length > 0 &&
-            src.contentNextKeyword.length > 0) {
-            // 检查下一页按钮文字是否匹配关键字
-            NSArray<NSString*>* nextKeywords = src.contentNextKeywordXpath.length > 0
-                ? xpathAll(body, src.contentNextKeywordXpath)
-                : @[];
-            NSArray<NSString*>* nextUrls = xpathAll(body, src.contentNextUrlXpath);
-            BOOL match = NO;
-            for (NSString* k in nextKeywords) {
-                if ([[self trim:k] rangeOfString:src.contentNextKeyword].location != NSNotFound) {
-                    match = YES; break;
-                }
-            }
-            // 没有关键字检查时直接看 url 是否变了
-            if (match && nextUrls.count > 0) {
-                NSString* next = absolutize(nextUrls.firstObject, url);
-                if (next.length > 0 && ![next isEqualToString:url]) {
-                    [self fetchChapterPage:next source:src accumInto:full
-                                   pageNum:pn + 1 completion:done];
-                    return;
-                }
-            }
+        NSArray<NSString*>* titles = xpathAll(body, src.chapterTitleXpath);
+        NSArray<NSString*>* hrefs  = xpathAll(body, src.chapterUrlXpath);
+        NSMutableArray* chapters = [NSMutableArray array];
+        NSUInteger n = MIN(titles.count, hrefs.count);
+        for (NSUInteger k = 0; k < n; ++k) {
+            NSString* t = [ss trim:titles[k]];
+            if (t.length == 0) continue;
+            [chapters addObject:@{
+                @"title": t,
+                @"url":   absolutize(hrefs[k], listUrl),
+            }];
         }
-        done();
+        if (chapters.count == 0) {
+            ss.statusLabel.stringValue = @"未抓到章节链接，XPath 可能失效";
+            ss.searchButton.enabled = YES;
+            return;
+        }
+        // 笔趣阁 /newbook/ 的"全部章节"已经是 第1章→第N章 正序；这里不再反转。
+        // 之前的反转是按 ul.newchapter / ul.xinchapter 「最新优先」 的错误假设。
+        [ss startConcurrentDownload:chapters source:src bookTitle:title
+                          localPath:localPath];
     });
 }
 
-- (NSString*)cleanHtmlText:(NSString*)s {
-    NSMutableString* m = [s mutableCopy];
-    // 替换常见 HTML 实体
-    [m replaceOccurrencesOfString:@"&nbsp;" withString:@" "
-                          options:0 range:NSMakeRange(0, m.length)];
-    [m replaceOccurrencesOfString:@"&amp;" withString:@"&"
-                          options:0 range:NSMakeRange(0, m.length)];
-    [m replaceOccurrencesOfString:@"&lt;" withString:@"<"
-                          options:0 range:NSMakeRange(0, m.length)];
-    [m replaceOccurrencesOfString:@"&gt;" withString:@">"
-                          options:0 range:NSMakeRange(0, m.length)];
-    return [m stringByTrimmingCharactersInSet:
-            [NSCharacterSet whitespaceAndNewlineCharacterSet]] ?: @"";
+#pragma mark - 并发下载
+
+- (void)startConcurrentDownload:(NSArray<NSDictionary*>*)chapters
+                         source:(BookSource*)src
+                      bookTitle:(NSString*)title
+                      localPath:(NSString*)localPath {
+    self.downloading = YES;
+    self.cancelled = NO;
+    self.dlCompleted = 0;
+    self.dlTotal = (NSInteger)chapters.count;
+    self.dlBookTitle = title;
+    self.dlSlots = [NSMutableArray arrayWithCapacity:chapters.count];
+    for (NSUInteger i = 0; i < chapters.count; ++i) {
+        [self.dlSlots addObject:@""];
+    }
+
+    self.progressBar.hidden = NO;
+    self.progressBar.minValue = 0;
+    self.progressBar.maxValue = chapters.count;
+    self.progressBar.doubleValue = 0;
+    self.cancelButton.hidden = NO;
+    self.searchButton.enabled = NO;
+    self.keywordField.enabled = NO;
+    [self updateProgressLabel];
+
+    // NSURLSession 默认 HTTPMaximumConnectionsPerHost=6，全部 task 一次性下发也行
+    // 不过为了状态可控，自己用 OperationQueue 限流
+    NSOperationQueue* q = [[NSOperationQueue alloc] init];
+    q.maxConcurrentOperationCount = 6;
+    q.name = @"online-book-download";
+
+    __weak typeof(self) ws = self;
+    for (NSInteger i = 0; i < (NSInteger)chapters.count; ++i) {
+        NSDictionary* ch = chapters[i];
+        NSInteger idx = i;
+        [q addOperationWithBlock:^{
+            __strong typeof(ws) ss = ws;
+            if (!ss || ss.cancelled) return;
+            dispatch_semaphore_t sem = dispatch_semaphore_create(0);
+            NSMutableString* full = [NSMutableString string];
+            // 章节标题独占一行 + 双换行，让 TextBook 章节解析能识别
+            [full appendFormat:@"\n%@\n\n", ch[@"title"]];
+            fetchChapterPageRecursive(ch[@"url"], src, full, 1, ^{
+                __strong typeof(ws) ss2 = ws;
+                if (ss2 && !ss2.cancelled) {
+                    ss2.dlSlots[idx] = full;
+                    ss2.dlCompleted++;
+                    [ss2 updateProgressLabel];
+                    if (ss2.dlCompleted >= ss2.dlTotal) {
+                        [ss2 finalizeDownloadToPath:localPath];
+                    }
+                }
+                dispatch_semaphore_signal(sem);
+            });
+            // 兜底超时（30s）避免某章卡死把整本卡住
+            dispatch_semaphore_wait(sem, dispatch_time(DISPATCH_TIME_NOW,
+                                                       30 * NSEC_PER_SEC));
+        }];
+    }
+}
+
+- (void)updateProgressLabel {
+    self.progressBar.doubleValue = self.dlCompleted;
+    self.statusLabel.stringValue =
+        [NSString stringWithFormat:@"正在下载《%@》：%ld / %ld 章",
+         self.dlBookTitle, (long)self.dlCompleted, (long)self.dlTotal];
+}
+
+- (void)finalizeDownloadToPath:(NSString*)localPath {
+    self.downloading = NO;
+    if (self.cancelled) {
+        self.statusLabel.stringValue = @"已取消下载";
+        [self hideProgressUI];
+        return;
+    }
+    NSMutableString* big = [NSMutableString string];
+    [big appendFormat:@"%@\n\n", self.dlBookTitle];  // 书名作为整本顶
+    for (NSString* s in self.dlSlots) {
+        if (s.length > 0) [big appendString:s];
+    }
+    NSMutableData* d = [NSMutableData dataWithBytes:"\xEF\xBB\xBF" length:3];
+    [d appendData:[big dataUsingEncoding:NSUTF8StringEncoding]];
+    BOOL ok = [d writeToFile:localPath atomically:YES];
+    if (!ok) {
+        self.statusLabel.stringValue = @"写入本地文件失败";
+        [self hideProgressUI];
+        return;
+    }
+    [self hideProgressUI];
+
+    // 用 canvas 打开本地整本，强制从头开始
+    [self.canvas openFileAtPath:localPath restoreIndex:0];
+    self.canvas.window.title = self.dlBookTitle;
+    [self.window close];
+}
+
+- (void)hideProgressUI {
+    self.progressBar.hidden = YES;
+    self.cancelButton.hidden = YES;
+    self.searchButton.enabled = YES;
+    self.keywordField.enabled = YES;
+}
+
+- (void)cancelDownload:(id)sender {
+    self.cancelled = YES;
+    self.statusLabel.stringValue = @"正在取消…";
 }
 
 #pragma mark - table
 
 - (NSInteger)numberOfRowsInTableView:(NSTableView*)tv {
-    return self.state == OBStateSearch
-        ? (NSInteger)self.searchResults.count
-        : (NSInteger)self.chapterList.count;
+    return (NSInteger)self.searchResults.count;
 }
 
 - (id)tableView:(NSTableView*)tv
 objectValueForTableColumn:(NSTableColumn*)col
             row:(NSInteger)row {
-    NSArray* arr = self.state == OBStateSearch ? self.searchResults : self.chapterList;
-    if (row < 0 || row >= (NSInteger)arr.count) return @"";
-    NSDictionary* item = arr[row];
+    if (row < 0 || row >= (NSInteger)self.searchResults.count) return @"";
+    NSDictionary* item = self.searchResults[row];
     if ([col.identifier isEqualToString:@"col1"]) return item[@"title"] ?: @"";
-    if (self.state == OBStateSearch) return item[@"author"] ?: @"";
-    return item[@"url"] ?: @"";
-}
-
-- (void)rowDoubleClicked:(id)sender {
-    NSInteger row = self.table.clickedRow;
-    if (row < 0) return;
-    if (self.state == OBStateSearch) [self loadChaptersForBookAtIndex:row];
-    else                              [self loadContentForChapterAtIndex:row];
-}
-
-#pragma mark - 书源管理
-
-- (void)showSourceManager:(id)sender {
-    NSWindow* w = [[NSWindow alloc] initWithContentRect:NSMakeRect(0, 0, 540, 420)
-                                              styleMask:(NSWindowStyleMaskTitled
-                                                         | NSWindowStyleMaskClosable)
-                                                backing:NSBackingStoreBuffered
-                                                  defer:NO];
-    w.title = @"书源管理";
-
-    NSView* root = w.contentView;
-    NSScrollView* sv = [[NSScrollView alloc] init];
-    sv.translatesAutoresizingMaskIntoConstraints = NO;
-    sv.hasVerticalScroller = YES;
-    sv.borderType = NSBezelBorder;
-
-    NSTableView* tbl = [[NSTableView alloc] init];
-    tbl.rowHeight = 26;
-    tbl.usesAlternatingRowBackgroundColors = YES;
-    NSTableColumn* c1 = [[NSTableColumn alloc] initWithIdentifier:@"title"];
-    c1.title = @"书源名称"; c1.width = 200;
-    [tbl addTableColumn:c1];
-    NSTableColumn* c2 = [[NSTableColumn alloc] initWithIdentifier:@"host"];
-    c2.title = @"站点"; c2.width = 280;
-    [tbl addTableColumn:c2];
-    sv.documentView = tbl;
-    [root addSubview:sv];
-
-    NSButton* addBtn  = [NSButton buttonWithTitle:@"+ 添加"
-                                              target:nil action:nil];
-    NSButton* editBtn = [NSButton buttonWithTitle:@"编辑"
-                                              target:nil action:nil];
-    NSButton* delBtn  = [NSButton buttonWithTitle:@"删除"
-                                              target:nil action:nil];
-    NSButton* impBtn  = [NSButton buttonWithTitle:@"从文件导入…"
-                                              target:nil action:nil];
-    for (NSButton* b in @[addBtn, editBtn, delBtn, impBtn]) {
-        b.translatesAutoresizingMaskIntoConstraints = NO;
-        [root addSubview:b];
-    }
-
-    __weak typeof(self) ws = self;
-    __weak NSTableView*  wtbl = tbl;
-    NSMutableArray<BookSource*>* (^loadAll)(void) = ^{
-        return [[BookSourceStore.shared all] mutableCopy];
-    };
-
-    // 表格 data source 用 block-backed object
-    static __strong id dsHolder = nil;
-    NSObject* ds = [self makeDataSourceForSources:loadAll table:tbl];
-    dsHolder = ds;
-    tbl.dataSource = (id)ds;
-    tbl.delegate   = (id)ds;
-    [tbl reloadData];
-
-    addBtn.target = self; addBtn.action = @selector(addSourceClicked:);
-    editBtn.target = self; editBtn.action = @selector(editSourceClicked:);
-    delBtn.target = self; delBtn.action = @selector(deleteSourceClicked:);
-    impBtn.target = self; impBtn.action = @selector(importSourcesClicked:);
-    self.managerTable = tbl;
-    self.managerWindow = w;
-
-    [NSLayoutConstraint activateConstraints:@[
-        [sv.topAnchor      constraintEqualToAnchor:root.topAnchor constant:14],
-        [sv.leadingAnchor  constraintEqualToAnchor:root.leadingAnchor constant:14],
-        [sv.trailingAnchor constraintEqualToAnchor:root.trailingAnchor constant:-14],
-        [sv.bottomAnchor   constraintEqualToAnchor:addBtn.topAnchor constant:-12],
-
-        [addBtn.leadingAnchor  constraintEqualToAnchor:root.leadingAnchor constant:14],
-        [addBtn.bottomAnchor   constraintEqualToAnchor:root.bottomAnchor constant:-14],
-        [editBtn.leadingAnchor constraintEqualToAnchor:addBtn.trailingAnchor constant:8],
-        [editBtn.centerYAnchor constraintEqualToAnchor:addBtn.centerYAnchor],
-        [delBtn.leadingAnchor  constraintEqualToAnchor:editBtn.trailingAnchor constant:8],
-        [delBtn.centerYAnchor  constraintEqualToAnchor:addBtn.centerYAnchor],
-        [impBtn.trailingAnchor constraintEqualToAnchor:root.trailingAnchor constant:-14],
-        [impBtn.centerYAnchor  constraintEqualToAnchor:addBtn.centerYAnchor],
-    ]];
-
-    [w center];
-    [w makeKeyAndOrderFront:nil];
-    self.managerOwnedWindow = w;  // 保活
-    (void)ws;
-    (void)wtbl;
-}
-
-// 简易 data source（包装在 NSObject 里实现协议）
-- (NSObject*)makeDataSourceForSources:(NSMutableArray<BookSource*>* (^)(void))loader
-                                table:(NSTableView*)tbl {
-    Class cls = NSClassFromString(@"_OBMSourcesDataSource");
-    if (!cls) {
-        cls = objc_allocateClassPair([NSObject class], "_OBMSourcesDataSource", 0);
-        class_addProtocol(cls, @protocol(NSTableViewDataSource));
-        class_addProtocol(cls, @protocol(NSTableViewDelegate));
-        class_addMethod(cls, @selector(numberOfRowsInTableView:),
-            imp_implementationWithBlock(^NSInteger(id self_, NSTableView* tv) {
-                return (NSInteger)[BookSourceStore.shared all].count;
-            }), "q@:@");
-        class_addMethod(cls, @selector(tableView:objectValueForTableColumn:row:),
-            imp_implementationWithBlock(^id(id self_, NSTableView* tv,
-                                            NSTableColumn* col, NSInteger row) {
-                NSArray<BookSource*>* arr = [BookSourceStore.shared all];
-                if (row < 0 || row >= (NSInteger)arr.count) return @"";
-                BookSource* s = arr[row];
-                if ([col.identifier isEqualToString:@"title"]) return s.title ?: @"";
-                return s.host ?: @"";
-            }), "@@:@@q");
-        objc_registerClassPair(cls);
-    }
-    return [[cls alloc] init];
-}
-
-- (void)addSourceClicked:(id)sender {
-    [self editSource:nil index:-1];
-}
-
-- (void)editSourceClicked:(id)sender {
-    NSInteger row = self.managerTable.selectedRow;
-    if (row < 0) return;
-    NSArray<BookSource*>* arr = [BookSourceStore.shared all];
-    [self editSource:arr[row] index:row];
-}
-
-- (void)deleteSourceClicked:(id)sender {
-    NSInteger row = self.managerTable.selectedRow;
-    if (row < 0) return;
-    NSAlert* a = [[NSAlert alloc] init];
-    a.messageText = @"删除该书源？";
-    a.informativeText = [BookSourceStore.shared all][row].title ?: @"";
-    [a addButtonWithTitle:@"删除"];
-    [a addButtonWithTitle:@"取消"];
-    if ([a runModal] == NSAlertFirstButtonReturn) {
-        [BookSourceStore.shared removeAtIndex:row];
-        [self.managerTable reloadData];
-        [self refreshSourcesPopup];
-    }
-}
-
-- (void)importSourcesClicked:(id)sender {
-    NSOpenPanel* p = [NSOpenPanel openPanel];
-    p.allowedFileTypes = @[@"json"];
-    p.title = @"导入 bs.json 书源配置";
-    if ([p runModal] != NSModalResponseOK) return;
-    NSAlert* mode = [[NSAlert alloc] init];
-    mode.messageText = @"导入方式";
-    mode.informativeText = @"追加：保留现有书源，添加文件中的源\n覆盖：清空后只保留文件中的源";
-    [mode addButtonWithTitle:@"追加"];
-    [mode addButtonWithTitle:@"覆盖"];
-    [mode addButtonWithTitle:@"取消"];
-    NSModalResponse r = [mode runModal];
-    if (r == NSAlertThirdButtonReturn) return;
-    BOOL replace = (r == NSAlertSecondButtonReturn);
-    BOOL ok = [BookSourceStore.shared importFromFile:p.URL.path replaceAll:replace];
-    if (!ok) {
-        NSAlert* err = [[NSAlert alloc] init];
-        err.messageText = @"导入失败";
-        err.informativeText = @"文件格式不对，应为 {\"book_sources\":[...]} 结构";
-        [err runModal];
-        return;
-    }
-    [self.managerTable reloadData];
-    [self refreshSourcesPopup];
-}
-
-- (void)editSource:(BookSource*)existing index:(NSInteger)idx {
-    NSAlert* a = [[NSAlert alloc] init];
-    a.messageText = existing ? @"编辑书源" : @"添加书源";
-    a.informativeText = @"按提示填写各 XPath；查询 URL 中 %s 是关键词占位符。";
-    [a addButtonWithTitle:@"保存"];
-    [a addButtonWithTitle:@"取消"];
-
-    // 简易表单：用 NSStackView 包多个 textfield
-    NSView* form = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, 460, 380)];
-    NSArray<NSString*>* labels = @[
-        @"名称", @"站点 host", @"查询 URL（含 %s）",
-        @"字符编码 (1=UTF8, 2=GBK)",
-        @"书名 XPath", @"主页 XPath", @"作者 XPath",
-        @"章节标题 XPath", @"章节链接 XPath", @"正文 XPath",
-    ];
-    NSMutableArray<NSTextField*>* fields = [NSMutableArray array];
-    CGFloat y = 350;
-    for (NSString* lab in labels) {
-        NSTextField* l = [NSTextField labelWithString:lab];
-        l.frame = NSMakeRect(0, y, 130, 22);
-        l.alignment = NSTextAlignmentRight;
-        [form addSubview:l];
-        NSTextField* tf = [[NSTextField alloc] initWithFrame:NSMakeRect(140, y - 2, 310, 24)];
-        [form addSubview:tf];
-        [fields addObject:tf];
-        y -= 32;
-    }
-    if (existing) {
-        fields[0].stringValue = existing.title             ?: @"";
-        fields[1].stringValue = existing.host              ?: @"";
-        fields[2].stringValue = existing.queryUrl          ?: @"";
-        fields[3].stringValue = [NSString stringWithFormat:@"%d", existing.queryCharset ?: 1];
-        fields[4].stringValue = existing.bookNameXpath     ?: @"";
-        fields[5].stringValue = existing.bookMainpageXpath ?: @"";
-        fields[6].stringValue = existing.bookAuthorXpath   ?: @"";
-        fields[7].stringValue = existing.chapterTitleXpath ?: @"";
-        fields[8].stringValue = existing.chapterUrlXpath   ?: @"";
-        fields[9].stringValue = existing.contentXpath      ?: @"";
-    } else {
-        fields[3].stringValue = @"1";
-    }
-    a.accessoryView = form;
-    if ([a runModal] != NSAlertFirstButtonReturn) return;
-
-    BookSource* s = [[BookSource alloc] init];
-    s.title             = fields[0].stringValue;
-    s.host              = fields[1].stringValue;
-    s.queryUrl          = fields[2].stringValue;
-    s.queryMethod       = 0;
-    s.queryCharset      = fields[3].stringValue.intValue;
-    s.bookNameXpath     = fields[4].stringValue;
-    s.bookMainpageXpath = fields[5].stringValue;
-    s.bookAuthorXpath   = fields[6].stringValue;
-    s.chapterTitleXpath = fields[7].stringValue;
-    s.chapterUrlXpath   = fields[8].stringValue;
-    s.contentXpath      = fields[9].stringValue;
-    if (existing) [BookSourceStore.shared updateAtIndex:idx with:s];
-    else          [BookSourceStore.shared addSource:s];
-
-    [self.managerTable reloadData];
-    [self refreshSourcesPopup];
+    if ([col.identifier isEqualToString:@"col2"]) return item[@"author"] ?: @"";
+    return @"";
 }
 
 @end
