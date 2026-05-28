@@ -21,8 +21,8 @@
 }
 
 - (instancetype)init {
-    NSRect frame = NSMakeRect(0, 0, 680, 540);
-    NSWindow* w = [[NSWindow alloc] initWithContentRect:frame
+    NSRect contentRect = NSMakeRect(0, 0, 680, 540);
+    NSWindow* w = [[NSWindow alloc] initWithContentRect:contentRect
                                               styleMask:(NSWindowStyleMaskTitled
                                                          | NSWindowStyleMaskClosable
                                                          | NSWindowStyleMaskResizable)
@@ -30,6 +30,8 @@
                                                   defer:NO];
     w.title = @"激活摸鱼书摊";
     [w setContentMinSize:NSMakeSize(680, 540)];
+    w.restorable = NO;            // 禁止 macOS 自动还原导致尺寸被改
+    w.releasedWhenClosed = NO;    // singleton 复用
     self = [super initWithWindow:w];
     if (self) [self buildUI];
     return self;
@@ -189,12 +191,10 @@
 - (void)showFromWindow:(NSWindow*)parent {
     self.uuidField.stringValue = [License.shared machineUUID];
     [self refreshStatus];
-    // 强制还原成初始尺寸，防止上次会话被 macOS 自动 restore 缩小
-    NSRect screen = parent ? parent.screen.frame : NSScreen.mainScreen.frame;
-    NSRect frame = NSMakeRect(0, 0, 680, 540);
-    frame.origin.x = screen.origin.x + (screen.size.width  - frame.size.width)  / 2;
-    frame.origin.y = screen.origin.y + (screen.size.height - frame.size.height) / 2;
-    [self.window setFrame:frame display:YES];
+    // 用 setContentSize（设的是内容区，不含标题栏）
+    // 避免 setFrame 设的窗口外框与 contentMinSize 冲突导致被夹小
+    [self.window setContentSize:NSMakeSize(680, 540)];
+    [self.window center];
     [self.window makeKeyAndOrderFront:nil];
     [NSApp activateIgnoringOtherApps:YES];
 }
