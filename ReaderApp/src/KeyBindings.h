@@ -34,4 +34,13 @@ extern NSNotificationName const KeyBindingsDidChangeNotification;
 - (void)resetActionToDefault:(NSString*)actionId;
 - (void)resetAllToDefault;
 
+// ---- 暂存 / 提交模式 ----
+// KeyRecorder 录入后只调 setPendingShortcut（不发通知不改 actions），
+// 等用户点"保存"再 commitPending（写 UserDefaults + 发通知）。
+- (void)setPendingShortcut:(KBShortcut*)s forActionId:(NSString*)actionId;
+- (KBShortcut*)effectiveShortcutForActionId:(NSString*)actionId;  // pending 优先
+- (BOOL)hasPendingChanges;
+- (void)commitPending;
+- (void)discardPending;
+
 @end

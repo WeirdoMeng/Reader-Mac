@@ -58,6 +58,12 @@ static void applyShortcut(NSMenuItem* mi, NSString* actionId) {
     self.borderless = NO;
     self.topMost = NO;
 
+    // 每次主窗口成为 key（包括 prefs 关闭后），强制让 canvas 重新成为
+    // firstResponder —— 解决"打开设置后方向键失灵"问题
+    [NSNotificationCenter.defaultCenter
+        addObserver:self selector:@selector(mainWindowBecameKey:)
+               name:NSWindowDidBecomeKeyNotification object:self.window];
+
     // restore last window state
     NSUserDefaults* defs = NSUserDefaults.standardUserDefaults;
     if ([defs boolForKey:@"windowTopMost"]) {
@@ -110,21 +116,21 @@ static void applyShortcut(NSMenuItem* mi, NSString* actionId) {
                                             forKey:@"windowFrame"];
 }
 
+- (void)mainWindowBecameKey:(NSNotification*)note {
+    // 确保阅读 canvas 永远是 firstResponder —— keyDown 路由可靠
+    if (self.canvas && self.window.firstResponder != self.canvas) {
+        [self.window makeFirstResponder:self.canvas];
+    }
+    // 强制 canvas 重新画一次（处理可能的渲染状态污染）
+    [self.canvas relayoutAndRedraw];
+}
+
 - (void)keyBindingsChanged:(NSNotification*)note {
-    NSLog(@"[AppDelegate] 快捷键变更通知，原地刷新菜单项");
-    // 不重建整个菜单（重建后 macOS 不刷新 accelerator 缓存，导致需要重启）
-    // 直接对每个已绑定的 NSMenuItem 更新 keyEquivalent + modifierMask。
-    for (NSString* actionId in self.boundItems) {
-        NSMenuItem* mi = self.boundItems[actionId];
-        applyShortcut(mi, actionId);
-    }
-    // "全局显隐 (...)" 提示文字也跟着刷新
-    KBAction* hk = [KeyBindings.shared actionWithId:@"globalToggle"];
-    NSMenuItem* hkLabel = self.boundItems[@"__globalToggleLabel"];
-    if (hkLabel && hk) {
-        hkLabel.title = [NSString stringWithFormat:@"全局显隐 (%@)",
-                                                    hk.shortcut.displayString];
-    }
+    NSLog(@"[AppDelegate] 快捷键变更通知，强制重建菜单刷新 accelerator");
+    // 真正生效需要：先 setMainMenu:nil 让系统丢弃 accelerator 缓存，
+    // 然后重新 installMenu 构建新菜单 + setMainMenu:newMenu。
+    [NSApp setMainMenu:nil];
+    [self installMenu];
     [self registerGlobalHotkeyFromBindings];
 }
 
@@ -508,11 +514,16 @@ static void applyShortcut(NSMenuItem* mi, NSString* actionId) {
 }
 
 - (void)prefsWindowWillClose:(NSNotification*)note {
+    // 关闭 prefs 时丢弃所有未保存的 pending（避免视觉残留）
+    if ([KeyBindings.shared hasPendingChanges]) {
+        [KeyBindings.shared discardPending];
+    }
     // 延迟一帧让 prefs 真正关掉，再把焦点回到主窗口的 canvas
     dispatch_async(dispatch_get_main_queue(), ^{
         [NSApp activateIgnoringOtherApps:YES];
         [self.window makeKeyAndOrderFront:nil];
         [self.window makeFirstResponder:self.canvas];
+        [self.canvas relayoutAndRedraw];   // 刷新阅读页（用户提议）
     });
 }
 

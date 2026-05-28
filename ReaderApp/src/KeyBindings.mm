@@ -49,6 +49,7 @@ static NSString* prefsKey(NSString* actionId) {
 @interface KeyBindings ()
 @property (strong) NSMutableArray<KBAction*>* actions;
 @property (strong) NSMutableDictionary<NSString*, KBAction*>* byId;
+@property (strong) NSMutableDictionary<NSString*, KBShortcut*>* pending;
 @end
 
 @implementation KeyBindings
@@ -64,10 +65,53 @@ static NSString* prefsKey(NSString* actionId) {
     if ((self = [super init])) {
         _actions = [NSMutableArray array];
         _byId = [NSMutableDictionary dictionary];
+        _pending = [NSMutableDictionary dictionary];
         [self registerDefaults];
         [self loadOverrides];
     }
     return self;
+}
+
+#pragma mark - pending / commit
+
+- (void)setPendingShortcut:(KBShortcut*)s forActionId:(NSString*)actionId {
+    if (!actionId) return;
+    if (s) self.pending[actionId] = s;
+    else   [self.pending removeObjectForKey:actionId];
+}
+
+- (KBShortcut*)effectiveShortcutForActionId:(NSString*)actionId {
+    KBShortcut* p = self.pending[actionId];
+    if (p) return p;
+    KBAction* a = self.byId[actionId];
+    return a.shortcut;
+}
+
+- (BOOL)hasPendingChanges { return self.pending.count > 0; }
+
+- (void)commitPending {
+    if (self.pending.count == 0) return;
+    NSLog(@"[KeyBindings] commitPending: %lu 项", (unsigned long)self.pending.count);
+    for (NSString* aid in self.pending) {
+        KBAction* a = self.byId[aid];
+        KBShortcut* sc = self.pending[aid];
+        if (a && sc) {
+            a.shortcut = sc;
+            [NSUserDefaults.standardUserDefaults
+                setObject:@{@"key": sc.keyChar ?: @"",
+                            @"mods": @(sc.modifiers)}
+                   forKey:prefsKey(aid)];
+        }
+    }
+    [self.pending removeAllObjects];
+    [NSNotificationCenter.defaultCenter
+        postNotificationName:KeyBindingsDidChangeNotification object:self];
+}
+
+- (void)discardPending {
+    [self.pending removeAllObjects];
+    [NSNotificationCenter.defaultCenter
+        postNotificationName:KeyBindingsDidChangeNotification object:self];
 }
 
 - (void)addActionId:(NSString*)aid
