@@ -54,7 +54,7 @@ void fill_default_header(header_t* header) {
     header->alpha    = 0xFF;
 
     // ---- typography ----
-    header->char_gap        = 0;
+    header->char_gap        = 1;
     header->line_gap        = 5;
     header->paragraph_gap   = 7;
     header->left_line_count = 0;
