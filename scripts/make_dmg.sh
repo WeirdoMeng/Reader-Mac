@@ -11,9 +11,32 @@ DIST_DIR="$ROOT/dist"
 APP_NAME="摸鱼书摊"
 
 echo "==> 构建 ${APP_NAME}.app（universal，arm64 + x86_64）"
+
+# 共享 SECRET 注入（不入 git）：优先从环境变量 MOYU_SECRET_HEX 读，
+# 其次按候选路径找 Reader-Mac-Doc/secret.env。
+SECRET="${MOYU_SECRET_HEX:-}"
+if [ -z "$SECRET" ]; then
+    for f in \
+        "$HOME/Desktop/Reader/Reader-Mac-Doc/secret.env" \
+        "$HOME/Desktop/Reader-Mac-Doc/secret.env"; do
+        if [ -f "$f" ]; then
+            SECRET=$(grep -E '^SECRET=' "$f" | head -1 | cut -d= -f2)
+            [ -n "$SECRET" ] && break
+        fi
+    done
+fi
+if [ -z "$SECRET" ]; then
+    echo "⚠️ 没有找到 MOYU_SECRET_HEX，构出的二进制激活会失败"
+    EXTRA_CMAKE=""
+else
+    echo "✓ SECRET 已就位（${#SECRET} hex chars）"
+    EXTRA_CMAKE="-DMOYU_SECRET_HEX=$SECRET"
+fi
+
 cmake -S "$ROOT/ReaderCore" -B "$BUILD_DIR" \
       -DCMAKE_BUILD_TYPE=Release \
-      -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" >/dev/null
+      -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" \
+      $EXTRA_CMAKE >/dev/null
 # 默认 target 含 MoyuShutanBundle，构后自动 rename + 资源拷贝
 cmake --build "$BUILD_DIR" -j
 

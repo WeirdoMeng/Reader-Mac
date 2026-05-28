@@ -9,9 +9,10 @@
 #pragma once
 #import <AppKit/AppKit.h>
 
-@interface ActivationWindowController : NSWindowController
+@interface ActivationWindowController : NSObject
 + (instancetype)shared;
 - (void)showFromWindow:(NSWindow*)parent;
+@property (strong, readonly) NSWindow* window;
 @end
 
 @interface ActivationOverlayView : NSView

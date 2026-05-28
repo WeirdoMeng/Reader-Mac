@@ -38,6 +38,17 @@ set_target_properties(ReaderMac PROPERTIES
 
 target_compile_options(ReaderMac PRIVATE -fobjc-arc)
 
+# 共享 HMAC 密钥（与安卓 KeyGen 端必须一致）。
+# 构建时通过 -DMOYU_SECRET_HEX=xxxx 注入；不传则源码里的占位生效（激活验签会失败但编译能过）。
+# 真值见 /Users/apple/Desktop/Reader-Mac-Doc/secrets.txt
+if(DEFINED MOYU_SECRET_HEX)
+    target_compile_definitions(ReaderMac PRIVATE
+        "MOYU_SECRET_HEX=\"${MOYU_SECRET_HEX}\"")
+    message(STATUS "ReaderMac SECRET injected (len=${CMAKE_MATCH_COUNT})")
+else()
+    message(WARNING "MOYU_SECRET_HEX not provided; activation will NOT verify real keys")
+endif()
+
 target_link_libraries(ReaderMac PRIVATE
     reader_core
     "-framework Cocoa"

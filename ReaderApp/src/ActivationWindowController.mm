@@ -6,34 +6,34 @@
 // =====================================================================
 
 @interface ActivationWindowController ()
+@property (strong, readwrite) NSWindow* window;
 @property (strong) NSTextField*  uuidField;
 @property (strong) NSTextField*  keyField;
 @property (strong) NSTextField*  statusLabel;
 @end
 
+static ActivationWindowController* gShared;
+
 @implementation ActivationWindowController
 
 + (instancetype)shared {
-    static ActivationWindowController* s;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{ s = [[ActivationWindowController alloc] init]; });
-    return s;
+    if (!gShared) gShared = [[ActivationWindowController alloc] init];
+    return gShared;
 }
 
 - (instancetype)init {
-    NSRect contentRect = NSMakeRect(0, 0, 680, 540);
-    NSWindow* w = [[NSWindow alloc] initWithContentRect:contentRect
-                                              styleMask:(NSWindowStyleMaskTitled
-                                                         | NSWindowStyleMaskClosable
-                                                         | NSWindowStyleMaskResizable)
+    if ((self = [super init])) {
+        NSRect contentRect = NSMakeRect(0, 0, 680, 540);
+        NSUInteger style = NSWindowStyleMaskTitled | NSWindowStyleMaskClosable;
+        _window = [[NSWindow alloc] initWithContentRect:contentRect
+                                              styleMask:style
                                                 backing:NSBackingStoreBuffered
                                                   defer:NO];
-    w.title = @"激活摸鱼书摊";
-    [w setContentMinSize:NSMakeSize(680, 540)];
-    w.restorable = NO;            // 禁止 macOS 自动还原导致尺寸被改
-    w.releasedWhenClosed = NO;    // singleton 复用
-    self = [super initWithWindow:w];
-    if (self) [self buildUI];
+        _window.title = @"激活摸鱼书摊";
+        _window.restorable = NO;
+        _window.releasedWhenClosed = NO;
+        [self buildUI];
+    }
     return self;
 }
 
@@ -191,8 +191,6 @@
 - (void)showFromWindow:(NSWindow*)parent {
     self.uuidField.stringValue = [License.shared machineUUID];
     [self refreshStatus];
-    // 用 setContentSize（设的是内容区，不含标题栏）
-    // 避免 setFrame 设的窗口外框与 contentMinSize 冲突导致被夹小
     [self.window setContentSize:NSMakeSize(680, 540)];
     [self.window center];
     [self.window makeKeyAndOrderFront:nil];

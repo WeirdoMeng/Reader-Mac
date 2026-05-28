@@ -10,9 +10,16 @@
 // =============================================================
 
 // 共享密钥（与安卓 KeyGen 端 BuildConfig 完全一致）
-// 96 hex chars = 48 bytes
-static NSString* const kSharedSecretHex =
-    @"cd973ca17ec1b9f40168081549951711816b9757386ee62a7f7a9600eab6c66387c2b78c63afb86a48d79eb67b8ecee4";
+//
+// 真值在编译时通过 -DMOYU_SECRET_HEX=... 注入（来自本机 secret.txt，不入 git）。
+// 没有注入时使用下面这个明显的占位 → 编译出来的产物激活永远会失败，但不影响开发
+// 流程（试用 3 天阅读没问题）。详见 README + Reader-Mac-Doc 仓 secrets.txt。
+#ifndef MOYU_SECRET_HEX
+// 96 hex chars 占位（全 0）。真值通过 build 时 -DMOYU_SECRET_HEX="..." 注入。
+#define MOYU_SECRET_HEX "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+#endif
+
+static NSString* const kSharedSecretHex = @MOYU_SECRET_HEX;
 
 // 试用 3 天
 static const NSTimeInterval kTrialSeconds = 3 * 24 * 60 * 60;
