@@ -114,8 +114,28 @@ static void applyShortcut(NSMenuItem* mi, NSString* actionId) {
     // Register the global show/hide hotkey from current bindings.
     [self registerGlobalHotkeyFromBindings];
 
-    // 方向键由 ReaderCanvasView.keyDown 直接处理（不再用 NSEvent monitor）。
-    // 之前的 arrowKeyMonitor 会在 prefs 关闭后因 e.window 路由错乱失效。
+    // 关键 fix：prefs 关闭后 macOS 偶尔不把 keyWindow 还给主窗口，
+    // 导致 e.window=nil 事件被 AppKit 直接丢弃。
+    // 用 local monitor 拦截"orphan"方向键事件，主动 dispatch 给 canvas。
+    __weak typeof(self) ws = self;
+    [NSEvent addLocalMonitorForEventsMatchingMask:NSEventMaskKeyDown
+                                          handler:^NSEvent*(NSEvent* e) {
+        NSString* chars = e.charactersIgnoringModifiers;
+        if (chars.length == 0) return e;
+        unichar k = [chars characterAtIndex:0];
+        if (k < 0xF700 || k > 0xF703) return e;          // 只关心 ←↑→↓
+        // 主窗口已正常持有事件 → 让正常路径处理（不重复触发）
+        if (e.window == ws.window) return e;
+        // 事件是 orphan（e.window=nil 或不是主窗口）→ 强制路由给 canvas
+        if (![ws.canvas hasBook]) return e;
+        NSLog(@"[Rescue] 拦截 orphan 方向键 0x%04X，直接转发 canvas", k);
+        // 兼带 makeKeyWindow，下次事件就能正常归属
+        [ws.window makeKeyAndOrderFront:nil];
+        [ws.window makeKeyWindow];
+        [ws.window makeFirstResponder:ws.canvas];
+        [ws.canvas keyDown:e];
+        return nil;
+    }];
 }
 
 - (void)saveWindowFrame:(NSNotification*)note {
@@ -124,15 +144,22 @@ static void applyShortcut(NSMenuItem* mi, NSString* actionId) {
 }
 
 - (void)mainWindowBecameKey:(NSNotification*)note {
-    NSLog(@"[AppDelegate] 主窗口 becomeKey, 当前 firstResp=%@",
+    NSLog(@"[AppDelegate] mainWindowBecameKey, firstResp=%@",
           self.window.firstResponder);
-    // 确保阅读 canvas 永远是 firstResponder —— keyDown 路由可靠
     if (self.canvas && self.window.firstResponder != self.canvas) {
         BOOL ok = [self.window makeFirstResponder:self.canvas];
         NSLog(@"[AppDelegate] makeFirstResponder:canvas → %d, 现在 firstResp=%@",
               ok, self.window.firstResponder);
     }
     [self.canvas relayoutAndRedraw];
+}
+
+- (void)applicationDidBecomeActive:(NSNotification*)note {
+    // 兜底：app 重新激活时强制把 firstResponder 设回 canvas
+    NSLog(@"[AppDelegate] applicationDidBecomeActive");
+    if (self.window && self.canvas) {
+        [self.window makeFirstResponder:self.canvas];
+    }
 }
 
 - (void)keyBindingsChanged:(NSNotification*)note {
@@ -503,8 +530,10 @@ static void applyShortcut(NSMenuItem* mi, NSString* actionId) {
 // ---------- View toggles ----------
 
 - (void)openPreferences:(id)sender {
+    NSLog(@"[AppDelegate] openPreferences 开始, self.prefs=%@", self.prefs);
     if (!self.prefs) {
         self.prefs = [[PreferencesWindowController alloc] initWithCanvas:self.canvas];
+        NSLog(@"[AppDelegate] 创建新 prefs window=%@", self.prefs.window);
     }
     [self.prefs showWindow:nil];
     [self.prefs.window center];
@@ -512,28 +541,42 @@ static void applyShortcut(NSMenuItem* mi, NSString* actionId) {
     self.prefs.window.level = self.topMost ? NSFloatingWindowLevel : NSNormalWindowLevel;
     [self.prefs.window makeKeyAndOrderFront:nil];
 
-    // 监听 prefs 关闭，确保主窗口重新成为 keyWindow + canvas 重新成为 firstResponder
+    // 监听 prefs 关闭。改用 object:nil 接收所有 close 通知，handler 内判断
     [NSNotificationCenter.defaultCenter removeObserver:self
                                                    name:NSWindowWillCloseNotification
-                                                 object:self.prefs.window];
+                                                 object:nil];
     [NSNotificationCenter.defaultCenter
         addObserver:self
-           selector:@selector(prefsWindowWillClose:)
+           selector:@selector(anyWindowWillClose:)
                name:NSWindowWillCloseNotification
-             object:self.prefs.window];
+             object:nil];
+    NSLog(@"[AppDelegate] openPreferences 完成, prefs.window=%@", self.prefs.window);
+}
+
+- (void)anyWindowWillClose:(NSNotification*)note {
+    NSWindow* w = note.object;
+    NSLog(@"[AppDelegate] anyWindowWillClose: %@ (title='%@')", w, w.title);
+    if (w == self.prefs.window) {
+        [self prefsWindowWillClose:note];
+    }
 }
 
 - (void)prefsWindowWillClose:(NSNotification*)note {
-    // 关闭 prefs 时丢弃所有未保存的 pending（避免视觉残留）
     if ([KeyBindings.shared hasPendingChanges]) {
         [KeyBindings.shared discardPending];
     }
-    // 延迟一帧让 prefs 真正关掉，再把焦点回到主窗口的 canvas
-    dispatch_async(dispatch_get_main_queue(), ^{
+    // 用 dispatch_after 给 AppKit 完整 close cycle 时间，
+    // 然后强制三连：activate + makeKeyAndOrderFront + makeKeyWindow
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.05 * NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), ^{
         [NSApp activateIgnoringOtherApps:YES];
+        [self.window orderFront:nil];
+        [self.window makeKeyWindow];
         [self.window makeKeyAndOrderFront:nil];
         [self.window makeFirstResponder:self.canvas];
-        [self.canvas relayoutAndRedraw];   // 刷新阅读页（用户提议）
+        NSLog(@"[AppDelegate] prefs 关闭恢复完成, keyWin=%@ firstResp=%@",
+              NSApp.keyWindow, self.window.firstResponder);
+        [self.canvas relayoutAndRedraw];
     });
 }
 
