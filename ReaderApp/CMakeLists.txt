@@ -8,6 +8,8 @@ set(APP_SOURCES
     src/KeyBindings.mm
     src/KeyRecorderButton.mm
     src/OnlineBookmarket.mm
+    src/License.mm
+    src/ActivationWindowController.mm
 )
 
 set(BS_JSON ${CMAKE_CURRENT_SOURCE_DIR}/Resources/bs.json)
@@ -18,7 +20,11 @@ set(APP_ICON ${CMAKE_CURRENT_SOURCE_DIR}/Resources/AppIcon.icns)
 set_source_files_properties(${APP_ICON} PROPERTIES
     MACOSX_PACKAGE_LOCATION "Resources")
 
-add_executable(ReaderMac MACOSX_BUNDLE ${APP_SOURCES} ${APP_ICON} ${BS_JSON})
+set(WECHAT_QR ${CMAKE_CURRENT_SOURCE_DIR}/Resources/wechat_qr.jpg)
+set_source_files_properties(${WECHAT_QR} PROPERTIES
+    MACOSX_PACKAGE_LOCATION "Resources")
+
+add_executable(ReaderMac MACOSX_BUNDLE ${APP_SOURCES} ${APP_ICON} ${BS_JSON} ${WECHAT_QR})
 
 set_target_properties(ReaderMac PROPERTIES
     MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/Resources/Info.plist
@@ -40,6 +46,8 @@ target_link_libraries(ReaderMac PRIVATE
     "-framework CoreText"
     "-framework CoreGraphics"
     "-framework Carbon"
+    "-framework Security"     # Keychain
+    "-framework IOKit"        # IOPlatformUUID
 )
 
 # Rename the .app bundle to "摸鱼书摊.app" after build, so the Dock tooltip

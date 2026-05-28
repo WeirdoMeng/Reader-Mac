@@ -2,6 +2,7 @@
 // the current page with Core Text.
 
 #import "ReaderCanvasView.h"
+#import "License.h"
 #import <CoreText/CoreText.h>
 
 #include "CoreTextMetrics.h"
@@ -321,6 +322,12 @@ public:
 }
 
 - (BOOL)openFileAtPath:(NSString*)path restoreIndex:(int)idx {
+    // License 闸门：试用过期且未激活 → 触发激活流程，不加载文件
+    if (![License.shared canRead]) {
+        [NSNotificationCenter.defaultCenter postNotificationName:@"MSNeedActivation"
+                                                          object:nil];
+        return NO;
+    }
     [self closeBook];
     self.currentFilePath = path;
     self.pendingRestoreIndex = idx;

@@ -1,6 +1,8 @@
 #import "AppDelegate.h"
+#import "ActivationWindowController.h"
 #import "GlobalHotkey.h"
 #import "KeyBindings.h"
+#import "License.h"
 #import "OnlineBookmarket.h"
 #import "PreferencesWindowController.h"
 #import "ReaderCanvasView.h"
@@ -32,6 +34,7 @@ static void applyShortcut(NSMenuItem* mi, NSString* actionId) {
 @property (strong) NSMenu* recentMenu;
 @property (strong) id      arrowKeyMonitor;  // legacy, no longer used
 @property (strong) NSMutableDictionary<NSString*, NSMenuItem*>* boundItems;
+@property (strong) ActivationOverlayView* activationOverlay;
 @end
 
 @implementation AppDelegate
@@ -103,6 +106,17 @@ static void applyShortcut(NSMenuItem* mi, NSString* actionId) {
                name:KeyBindingsDidChangeNotification
              object:nil];
 
+    // ① 启动时立刻锚定 License（首启 → 写 install record）
+    (void)[License shared];
+
+    // ② 监听激活通知（激活成功后刷新阅读区）
+    [NSNotificationCenter.defaultCenter
+        addObserver:self selector:@selector(licenseDidActivate:)
+               name:@"MSLicenseDidActivate" object:nil];
+    [NSNotificationCenter.defaultCenter
+        addObserver:self selector:@selector(needActivation:)
+               name:@"MSNeedActivation" object:nil];
+
     // Restore last session
     NSUserDefaults* d = NSUserDefaults.standardUserDefaults;
     NSString* lastFile = [d stringForKey:@"lastFile"];
@@ -113,8 +127,28 @@ static void applyShortcut(NSMenuItem* mi, NSString* actionId) {
         self.window.title = lastFile.lastPathComponent;
     }
 
+    // 试用过期 → 显示拦截覆盖层
+    [self refreshActivationOverlay];
+
     // Register the global show/hide hotkey from current bindings.
     [self registerGlobalHotkeyFromBindings];
+
+    // 后门 reset 监听：⌃⌥⇧R
+    [NSEvent addLocalMonitorForEventsMatchingMask:NSEventMaskKeyDown
+                                          handler:^NSEvent*(NSEvent* e) {
+        NSEventModifierFlags req = NSEventModifierFlagControl |
+                                   NSEventModifierFlagOption  |
+                                   NSEventModifierFlagShift;
+        NSEventModifierFlags m = e.modifierFlags & req;
+        if (m == req) {
+            NSString* chars = e.charactersIgnoringModifiers.lowercaseString;
+            if ([chars isEqualToString:@"r"]) {
+                [self promptResetLicense];
+                return nil;
+            }
+        }
+        return e;
+    }];
 
     // 关键 fix：prefs 关闭后 macOS 偶尔不把 keyWindow 还给主窗口，
     // 导致 e.window=nil 事件被 AppKit 直接丢弃。
@@ -219,6 +253,14 @@ static void applyShortcut(NSMenuItem* mi, NSString* actionId) {
     applyShortcut(prefs, @"preferences");
     self.boundItems[@"preferences"] = prefs;
     [appMenu addItem:prefs];
+
+    [appMenu addItem:[NSMenuItem separatorItem]];
+    NSMenuItem* activate = [[NSMenuItem alloc] initWithTitle:@"激活摸鱼书摊…"
+                                                       action:@selector(openActivation:)
+                                                keyEquivalent:@""];
+    activate.target = self;
+    [appMenu addItem:activate];
+
     [appMenu addItem:[NSMenuItem separatorItem]];
     [appMenu addItemWithTitle:@"退出摸鱼书摊"
                        action:@selector(terminate:)
@@ -792,6 +834,79 @@ static void applyShortcut(NSMenuItem* mi, NSString* actionId) {
     [self.canvas openFileAtPath:filename];
     self.window.title = filename.lastPathComponent;
     return YES;
+}
+
+// =============================================================
+//                  License 相关
+// =============================================================
+
+- (void)openActivation:(id)sender {
+    [[ActivationWindowController shared] showFromWindow:self.window];
+}
+
+- (void)licenseDidActivate:(NSNotification*)note {
+    // 激活成功 → 移除拦截 + 重新打开上次阅读的书
+    [self.activationOverlay removeFromSuperview];
+    self.activationOverlay = nil;
+    NSUserDefaults* d = NSUserDefaults.standardUserDefaults;
+    NSString* lastFile = [d stringForKey:@"lastFile"];
+    int lastIndex = (int)[d integerForKey:@"lastIndex"];
+    if (lastFile.length > 0 &&
+        [NSFileManager.defaultManager fileExistsAtPath:lastFile] &&
+        ![self.canvas hasBook]) {
+        [self.canvas openFileAtPath:lastFile restoreIndex:lastIndex];
+        self.window.title = lastFile.lastPathComponent;
+    }
+}
+
+- (void)needActivation:(NSNotification*)note {
+    // 阅读路径调到这里：试用过期，弹激活
+    [self refreshActivationOverlay];
+    [[ActivationWindowController shared] showFromWindow:self.window];
+}
+
+// 试用过期时显示拦截覆盖层；激活/试用中移除
+- (void)refreshActivationOverlay {
+    if ([License.shared canRead]) {
+        [self.activationOverlay removeFromSuperview];
+        self.activationOverlay = nil;
+        return;
+    }
+    if (self.activationOverlay) return;  // 已显示
+    NSView* contentView = self.window.contentView;
+    self.activationOverlay = [[ActivationOverlayView alloc] initWithFrame:contentView.bounds];
+    self.activationOverlay.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+    __weak typeof(self) ws = self;
+    self.activationOverlay.onActivateTapped = ^{
+        [ws openActivation:nil];
+    };
+    [contentView addSubview:self.activationOverlay];
+}
+
+// ⌃⌥⇧R 后门：密码框 → MYST666 → 清所有 license 状态
+- (void)promptResetLicense {
+    NSAlert* a = [[NSAlert alloc] init];
+    a.messageText = @"重置许可状态";
+    a.informativeText = @"输入维护密码后将清除所有试用 / 激活记录。";
+    [a addButtonWithTitle:@"确认"];
+    [a addButtonWithTitle:@"取消"];
+    NSSecureTextField* pw = [[NSSecureTextField alloc]
+        initWithFrame:NSMakeRect(0, 0, 240, 24)];
+    a.accessoryView = pw;
+    if ([a runModal] != NSAlertFirstButtonReturn) return;
+    if (![pw.stringValue isEqualToString:@"MYST666"]) {
+        NSAlert* err = [[NSAlert alloc] init];
+        err.messageText = @"密码错误";
+        [err runModal];
+        return;
+    }
+    [License.shared resetAllState];
+    [self.activationOverlay removeFromSuperview];
+    self.activationOverlay = nil;
+    NSAlert* ok = [[NSAlert alloc] init];
+    ok.messageText = @"已重置";
+    ok.informativeText = @"试用 / 激活状态已清空，恢复为 3 天试用。";
+    [ok runModal];
 }
 
 @end
