@@ -21,13 +21,15 @@
 }
 
 - (instancetype)init {
-    NSRect frame = NSMakeRect(0, 0, 640, 520);
+    NSRect frame = NSMakeRect(0, 0, 680, 540);
     NSWindow* w = [[NSWindow alloc] initWithContentRect:frame
                                               styleMask:(NSWindowStyleMaskTitled
-                                                         | NSWindowStyleMaskClosable)
+                                                         | NSWindowStyleMaskClosable
+                                                         | NSWindowStyleMaskResizable)
                                                 backing:NSBackingStoreBuffered
                                                   defer:NO];
     w.title = @"激活摸鱼书摊";
+    [w setContentMinSize:NSMakeSize(680, 540)];
     self = [super initWithWindow:w];
     if (self) [self buildUI];
     return self;
@@ -187,7 +189,12 @@
 - (void)showFromWindow:(NSWindow*)parent {
     self.uuidField.stringValue = [License.shared machineUUID];
     [self refreshStatus];
-    [self.window center];
+    // 强制还原成初始尺寸，防止上次会话被 macOS 自动 restore 缩小
+    NSRect screen = parent ? parent.screen.frame : NSScreen.mainScreen.frame;
+    NSRect frame = NSMakeRect(0, 0, 680, 540);
+    frame.origin.x = screen.origin.x + (screen.size.width  - frame.size.width)  / 2;
+    frame.origin.y = screen.origin.y + (screen.size.height - frame.size.height) / 2;
+    [self.window setFrame:frame display:YES];
     [self.window makeKeyAndOrderFront:nil];
     [NSApp activateIgnoringOtherApps:YES];
 }

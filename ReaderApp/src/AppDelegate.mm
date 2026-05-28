@@ -431,40 +431,23 @@ static void applyShortcut(NSMenuItem* mi, NSString* actionId) {
     NSApp.mainMenu = mainMenu;
 }
 
-// 自定义关于面板，含项目主页链接
 - (void)showAboutPanel:(id)sender {
     NSString* version = NSBundle.mainBundle.infoDictionary[@"CFBundleShortVersionString"];
     NSString* build   = NSBundle.mainBundle.infoDictionary[@"CFBundleVersion"];
 
-    NSMutableAttributedString* credits = [[NSMutableAttributedString alloc] init];
-
-    NSDictionary* normal = @{
-        NSFontAttributeName: [NSFont systemFontOfSize:11],
-        NSForegroundColorAttributeName: [NSColor labelColor]
-    };
     NSMutableParagraphStyle* ps = [[NSMutableParagraphStyle alloc] init];
     ps.alignment = NSTextAlignmentCenter;
-    [credits appendAttributedString:[[NSAttributedString alloc]
-        initWithString:@"轻量级 Mac 阅读器，支持 TXT / EPUB / MOBI。\n\n"
+    NSAttributedString* credits = [[NSAttributedString alloc]
+        initWithString:@"原生 macOS 小说阅读器，支持 TXT / EPUB / MOBI。"
             attributes:@{ NSFontAttributeName: [NSFont systemFontOfSize:11],
                           NSForegroundColorAttributeName: [NSColor labelColor],
-                          NSParagraphStyleAttributeName: ps }]];
-
-    NSURL* url = [NSURL URLWithString:@"https://github.com/WeirdoMeng/Reader-Mac"];
-    NSAttributedString* link = [[NSAttributedString alloc]
-        initWithString:@"打开项目主页"
-            attributes:@{ NSLinkAttributeName: url,
-                          NSFontAttributeName: [NSFont systemFontOfSize:11],
-                          NSParagraphStyleAttributeName: ps,
-                          NSUnderlineStyleAttributeName: @(NSUnderlineStyleSingle) }];
-    [credits appendAttributedString:link];
+                          NSParagraphStyleAttributeName: ps }];
 
     [NSApp orderFrontStandardAboutPanelWithOptions:@{
         @"ApplicationName":    @"摸鱼书摊",
         @"ApplicationVersion": version ?: @"0.2.0",
         @"Version":            build   ?: @"1",
         @"Credits":            credits,
-        @"Copyright":          @"开源软件",
     }];
 }
 

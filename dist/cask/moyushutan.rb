@@ -12,7 +12,7 @@
 
 cask "moyushutan" do
   version "0.2.0"
-  sha256 "REPLACE_WITH_REAL_SHA256"
+  sha256 "4505b73b23cb4c7b9df993ea9b448d873b5c6f8a6025690ce844c2f5eb616dc9"
 
   url "https://github.com/WeirdoMeng/Reader-Mac/releases/download/v#{version}/MoyuShutan-#{version}.dmg"
   name "摸鱼书摊"
