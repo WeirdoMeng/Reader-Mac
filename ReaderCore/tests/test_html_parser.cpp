@@ -13,7 +13,7 @@ TEST_CASE("HtmlParser extracts XPath results") {
         "</body></html>";
 
     std::vector<std::string> titles;
-    BOOL stop = FALSE;
+    int stop = 0;
     int rc = HtmlParser::Instance()->HtmlParseByXpath(
         html, (int)sizeof(html) - 1,
         "//div[@class='title']", titles, &stop, FALSE);
@@ -26,7 +26,7 @@ TEST_CASE("HtmlParser extracts XPath results") {
 
 TEST_CASE("HtmlParser multi-step interface") {
     const char html[] = "<html><body><a href='ch1.html'>One</a><a href='ch2.html'>Two</a></body></html>";
-    BOOL stop = FALSE;
+    int stop = 0;
     void* doc = nullptr;
     void* ctx = nullptr;
 

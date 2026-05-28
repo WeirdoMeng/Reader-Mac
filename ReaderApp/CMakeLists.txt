@@ -7,13 +7,18 @@ set(APP_SOURCES
     src/GlobalHotkey.mm
     src/KeyBindings.mm
     src/KeyRecorderButton.mm
+    src/OnlineBookmarket.mm
 )
+
+set(BS_JSON ${CMAKE_CURRENT_SOURCE_DIR}/Resources/bs.json)
+set_source_files_properties(${BS_JSON} PROPERTIES
+    MACOSX_PACKAGE_LOCATION "Resources")
 
 set(APP_ICON ${CMAKE_CURRENT_SOURCE_DIR}/Resources/AppIcon.icns)
 set_source_files_properties(${APP_ICON} PROPERTIES
     MACOSX_PACKAGE_LOCATION "Resources")
 
-add_executable(ReaderMac MACOSX_BUNDLE ${APP_SOURCES} ${APP_ICON})
+add_executable(ReaderMac MACOSX_BUNDLE ${APP_SOURCES} ${APP_ICON} ${BS_JSON})
 
 set_target_properties(ReaderMac PROPERTIES
     MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/Resources/Info.plist

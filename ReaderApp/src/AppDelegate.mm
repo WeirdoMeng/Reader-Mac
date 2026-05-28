@@ -1,6 +1,7 @@
 #import "AppDelegate.h"
 #import "GlobalHotkey.h"
 #import "KeyBindings.h"
+#import "OnlineBookmarket.h"
 #import "PreferencesWindowController.h"
 #import "ReaderCanvasView.h"
 
@@ -25,6 +26,7 @@ static void applyShortcut(NSMenuItem* mi, NSString* actionId) {
 @property (assign) BOOL borderless;
 @property (assign) BOOL topMost;
 @property (strong) PreferencesWindowController* prefs;
+@property (strong) OnlineBookmarketWindowController* online;
 @property (strong) NSMenu* chaptersMenu;
 @property (strong) NSMenu* bookmarksMenu;
 @property (strong) NSMenu* recentMenu;
@@ -353,6 +355,15 @@ static void applyShortcut(NSMenuItem* mi, NSString* actionId) {
     self.boundItems[@"decreaseFont"] = decFont;
     [goMenu addItem:decFont];
 
+    [goMenu addItem:[NSMenuItem separatorItem]];
+    NSMenuItem* market = [[NSMenuItem alloc] initWithTitle:@"在线小说…"
+                                                     action:@selector(showOnlineMarket:)
+                                              keyEquivalent:@""];
+    market.target = self;
+    applyShortcut(market, @"onlineMarket");
+    self.boundItems[@"onlineMarket"] = market;
+    [goMenu addItem:market];
+
     NSMenuItem* bookmarksItem = [[NSMenuItem alloc] initWithTitle:@"书签列表"
                                                             action:nil
                                                      keyEquivalent:@""];
@@ -609,6 +620,16 @@ static void applyShortcut(NSMenuItem* mi, NSString* actionId) {
 // ---------- 字号 ----------
 - (void)increaseFont:(id)sender { [self.canvas increaseFontSize]; }
 - (void)decreaseFont:(id)sender { [self.canvas decreaseFontSize]; }
+
+- (void)showOnlineMarket:(id)sender {
+    if (!self.online) {
+        self.online = [[OnlineBookmarketWindowController alloc]
+                       initWithCanvas:self.canvas];
+    }
+    [self.online showWindow:nil];
+    [self.online.window center];
+    [self.online.window makeKeyAndOrderFront:nil];
+}
 
 - (void)openRecent:(NSMenuItem*)sender {
     NSString* path = sender.representedObject;

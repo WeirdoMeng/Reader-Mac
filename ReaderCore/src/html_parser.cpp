@@ -51,7 +51,7 @@ void HtmlParser::ReleaseContent(char* content) {
 int HtmlParser::HtmlParseByXpath(const char* html, int len,
                                  const std::string& xpath,
                                  std::vector<std::string>& value,
-                                 BOOL* stop, BOOL clear) {
+                                 int* stop, int clear) {
     int i;
     xmlDocPtr doc = nullptr;
     xmlXPathContextPtr xpathCtx = nullptr;
@@ -111,7 +111,7 @@ _stop:
 }
 
 int HtmlParser::HtmlParseBegin(const char* html, int len,
-                               void** pdoc, void** pctx, BOOL* stop) {
+                               void** pdoc, void** pctx, int* stop) {
     xmlDocPtr           doc = nullptr;
     xmlXPathContextPtr  ctx = nullptr;
 
@@ -139,7 +139,7 @@ _stop:
 int HtmlParser::HtmlParseByXpath(void* doc_, void* ctx_,
                                  const std::string& xpath,
                                  std::vector<std::string>& value,
-                                 BOOL* stop, BOOL clear) {
+                                 int* stop, int clear) {
     if (!doc_ || !ctx_) return 1;
     int i;
     xmlXPathContextPtr xpathCtx = (xmlXPathContextPtr)ctx_;

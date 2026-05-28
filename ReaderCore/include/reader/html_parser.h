@@ -19,15 +19,15 @@ public:
     int HtmlParseByXpath(const char* html, int len,
                          const std::string& xpath,
                          std::vector<std::string>& value,
-                         BOOL* stop, BOOL clear = FALSE);
+                         int* stop, int clear = 0);
 
     // multi-step parser (open once, query many)
     int HtmlParseBegin(const char* html, int len,
-                       void** doc, void** ctx, BOOL* stop);
+                       void** doc, void** ctx, int* stop);
     int HtmlParseByXpath(void* doc, void* ctx,
                          const std::string& xpath,
                          std::vector<std::string>& value,
-                         BOOL* stop, BOOL clear = FALSE);
+                         int* stop, int clear = 0);
     int HtmlParseEnd(void* doc, void* ctx);
 
     int  FormatHtml(char* html, int len, char** htmlfmt, int* fmtlen);
