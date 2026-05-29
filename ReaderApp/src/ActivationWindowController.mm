@@ -5,11 +5,12 @@
 //                     ActivationWindowController
 // =====================================================================
 
-@interface ActivationWindowController ()
+@interface ActivationWindowController () <NSWindowDelegate>
 @property (strong, readwrite) NSWindow* window;
 @property (strong) NSTextField*  uuidField;
 @property (strong) NSTextField*  keyField;
 @property (strong) NSTextField*  statusLabel;
+@property (strong) NSTimer*      refreshTimer;
 @end
 
 static ActivationWindowController* gShared;
@@ -23,8 +24,10 @@ static ActivationWindowController* gShared;
 
 - (instancetype)init {
     if ((self = [super init])) {
-        NSRect contentRect = NSMakeRect(0, 0, 680, 540);
-        NSUInteger style = NSWindowStyleMaskTitled | NSWindowStyleMaskClosable;
+        NSRect contentRect = NSMakeRect(0, 0, 680, 460);
+        NSUInteger style = NSWindowStyleMaskTitled
+                         | NSWindowStyleMaskClosable
+                         | NSWindowStyleMaskResizable;
         _window = [[NSWindow alloc] initWithContentRect:contentRect
                                               styleMask:style
                                                 backing:NSBackingStoreBuffered
@@ -32,6 +35,7 @@ static ActivationWindowController* gShared;
         _window.title = @"激活摸鱼书摊";
         _window.restorable = NO;
         _window.releasedWhenClosed = NO;
+        _window.delegate = self;
         [self buildUI];
     }
     return self;
@@ -128,6 +132,7 @@ static ActivationWindowController* gShared;
         [qrTip.topAnchor      constraintEqualToAnchor:qr.bottomAnchor constant:12],
         [qrTip.leadingAnchor  constraintEqualToAnchor:root.leadingAnchor constant:20],
         [qrTip.trailingAnchor constraintEqualToAnchor:sep.leadingAnchor constant:-12],
+        [qrTip.bottomAnchor   constraintLessThanOrEqualToAnchor:root.bottomAnchor constant:-20],
 
         // 分隔线
         [sep.topAnchor      constraintEqualToAnchor:root.topAnchor constant:20],
@@ -174,10 +179,13 @@ static ActivationWindowController* gShared;
             self.statusLabel.textColor = [NSColor systemGreenColor];
             break;
         case MSLicenseStateTrialActive: {
-            int days = (int)([l trialRemainingSeconds] / 86400);
-            int hours = (int)(([l trialRemainingSeconds] - days*86400) / 3600);
+            NSTimeInterval rem = [l trialRemainingSeconds];
+            int days = (int)(rem / 86400);
+            int hours = (int)((rem - days*86400) / 3600);
+            int mins = (int)((rem - days*86400 - hours*3600) / 60);
+            int secs = (int)rem % 60;
             self.statusLabel.stringValue = [NSString stringWithFormat:
-                @"试用中，还剩 %d 天 %d 时", days, hours];
+                @"试用中，还剩 %d 天 %d 时 %d 分 %d 秒", days, hours, mins, secs];
             self.statusLabel.textColor = [NSColor secondaryLabelColor];
             break;
         }
@@ -191,10 +199,30 @@ static ActivationWindowController* gShared;
 - (void)showFromWindow:(NSWindow*)parent {
     self.uuidField.stringValue = [License.shared machineUUID];
     [self refreshStatus];
-    [self.window setContentSize:NSMakeSize(680, 540)];
+    [self.window setContentSize:NSMakeSize(680, 460)];
     [self.window center];
     [self.window makeKeyAndOrderFront:nil];
     [NSApp activateIgnoringOtherApps:YES];
+    [self startRefreshTimer];
+}
+
+- (void)startRefreshTimer {
+    [self.refreshTimer invalidate];
+    __weak typeof(self) ws = self;
+    self.refreshTimer = [NSTimer scheduledTimerWithTimeInterval:1.0
+                                                        repeats:YES
+                                                          block:^(NSTimer* t) {
+        [ws refreshStatus];
+    }];
+}
+
+- (void)stopRefreshTimer {
+    [self.refreshTimer invalidate];
+    self.refreshTimer = nil;
+}
+
+- (void)windowWillClose:(NSNotification*)note {
+    [self stopRefreshTimer];
 }
 
 - (void)copyUUID:(id)sender {

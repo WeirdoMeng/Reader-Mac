@@ -35,6 +35,7 @@ static void applyShortcut(NSMenuItem* mi, NSString* actionId) {
 @property (strong) id      arrowKeyMonitor;  // legacy, no longer used
 @property (strong) NSMutableDictionary<NSString*, NSMenuItem*>* boundItems;
 @property (strong) ActivationOverlayView* activationOverlay;
+@property (strong) NSTimer*                 licenseWatchTimer;
 @end
 
 @implementation AppDelegate
@@ -129,6 +130,14 @@ static void applyShortcut(NSMenuItem* mi, NSString* actionId) {
 
     // 试用过期 → 显示拦截覆盖层
     [self refreshActivationOverlay];
+
+    // 试用倒计时到 0 时主动盖蒙层（不依赖用户打开新文件触发）
+    __weak typeof(self) wsLic = self;
+    self.licenseWatchTimer = [NSTimer scheduledTimerWithTimeInterval:60.0
+                                                             repeats:YES
+                                                               block:^(NSTimer* t) {
+        [wsLic refreshActivationOverlay];
+    }];
 
     // Register the global show/hide hotkey from current bindings.
     [self registerGlobalHotkeyFromBindings];
